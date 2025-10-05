@@ -1,7 +1,7 @@
 // js/app.js
 // Palliative Rounds — App Orchestrator
 // + Bulk ops in main list (select/move/delete)
-// + Export Patient List with print scaling (scale/font/fit-one)
+// + Export Patient List with print scaling (scale/font/fit-one) and custom columns
 // + Robust write-through for text fields
 
 import { Sheets } from './sheets.js';
@@ -38,6 +38,7 @@ const q  = (sel, root=document)=>root.querySelector(sel);
 const qa = (sel, root=document)=>Array.from(root.querySelectorAll(sel));
 const toast = (msg, type='info') => UI.toast(msg, type);
 
+// Labs helpers (unchanged)
 const LAB_REF = {
   'WBC':[4.0,11.0],'HGB':[12.0,16.0],'PLT':[150,450],'ANC':[1.5,8.0],'CRP':[0,5],
   'Albumin':[3.5,5.0],'Sodium (Na)':[135,145],'Potassium (K)':[3.5,5.1],'Chloride (Cl)':[98,107],
@@ -76,8 +77,7 @@ const State = {
   ready:false, loading:false, filter:'all', search:'',
   activeSection:'Default', sections:['Default'],
   patients:[], esas:[], ctcae:[], labs:[],
-  // main-list selection
-  sel: new Set(),
+  sel: new Set(), // selection in main list
   config:{
     spreadsheetId: localStorage.getItem('pr.sheet')||'',
     bridgeUrl: localStorage.getItem('pr.bridge')||'',
@@ -142,6 +142,7 @@ function renderPatientsList(){
     cb.addEventListener('change', ()=>{
       if (cb.checked) State.sel.add(p['Patient Code']);
       else State.sel.delete(p['Patient Code']);
+      updateBulkBarState();
     });
 
     const name=document.createElement('div'); name.className='row-title linkish'; name.textContent=p['Patient Name']||'(Unnamed)';
@@ -175,14 +176,13 @@ function renderPatientsList(){
   updateBulkBarState();
 }
 function updateBulkBarState(){
-  // تمكين/تعطيل الأزرار حسب التحديد
   const has = State.sel.size>0;
   ['#plist-move','#plist-delete'].forEach(id=>{
     const b=q(id); if (b) b.disabled = !has;
   });
 }
 
-// ===== Populate move targets (both main bulk bar + export modal) =====
+// ===== Populate move targets =====
 function populateMoveTargets(){
   const sections = State.sections || ['Default'];
   const s1 = q('#plist-move-target'); if (s1){
@@ -195,7 +195,7 @@ function populateMoveTargets(){
   }
 }
 
-// ===== Dashboard binding (robust write-through) =====
+// ===== Dashboard binding (write-through) =====
 const PATIENT_FIELDS = new Set([
   'Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Diagnosis','Diet','Isolation','Comments',
   'Section','Done','Updated At','HPI Diagnosis','HPI Previous','HPI Current','HPI Initial','Patient Assessment','Medication List','Latest Notes',
@@ -385,7 +385,7 @@ function bindUI(){
     renderPatientsList();
   }, 200));
 
-  // Sections: add/rename/delete
+  // Sections CRUD
   q('#btn-add-section')?.addEventListener('click', async ()=>{
     const name=prompt('New section name')||''; if(!name.trim()) return;
     if (State.sections.includes(name)) return toast('Section name already exists.','warn');
@@ -650,6 +650,7 @@ function closeExportModal(){
   modal.classList.add('hidden');
   document.documentElement.style.overflow='';
 }
+
 // Internal selection model for export modal
 const ExportSel = new Set();
 function getPatientsForExportFiltered(){
@@ -689,6 +690,7 @@ function renderExportList(){
     table.style.borderCollapse='collapse';
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
+    // ملاحظة: جدول المعاينة داخل المودال لم نغيره (Diet موجود) لأنك طلبت التغيير للطباعة فقط.
     ['Select','Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Cause Of Admission','Diet','Isolation','Note'].forEach(h=>{
       const th = document.createElement('th');
       th.textContent = h;
@@ -747,42 +749,23 @@ function renderExportList(){
     root.appendChild(d);
   }
 }
-async function moveSelectedPatients(targetSection){
-  const codes = Array.from(ExportSel.values());
-  if (!codes.length) { toast('No patients selected.', 'warn'); return; }
-  try{
-    for (const code of codes){
-      await Sheets.writePatientField(code,'Section', targetSection);
-      const i = State.patients.findIndex(p=>p['Patient Code']===code);
-      if (i>=0) State.patients[i].Section = targetSection;
-    }
-    renderPatientsList();
-    renderExportList();
-    toast(`Moved ${codes.length} patients to "${targetSection}".`,'success');
-  }catch(e){
-    console.error(e); toast('Failed to move some patients.','danger');
-  }
+
+// ===== Print builder with scaling options (custom columns) =====
+
+// helpers for print row formatting
+function escapeHTML(s){ return String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function ageYearsOnly(v){
+  if (v==null) return '';
+  const m = String(v).match(/\d+/);
+  return m ? m[0] : String(v); // أول رقم صحيح فقط
 }
-async function deleteSelectedPatients(){
-  const codes = Array.from(ExportSel.values());
-  if (!codes.length) { toast('No patients selected.', 'warn'); return; }
-  if (!confirm('Delete selected patients? This cannot be undone.')) return;
-  try{
-    await Sheets.bulkDeletePatients(codes);
-    State.patients = State.patients.filter(p=>!codes.includes(p['Patient Code']));
-    State.esas     = State.esas.filter(r=>!codes.includes(r['Patient Code']));
-    State.ctcae    = State.ctcae.filter(r=>!codes.includes(r['Patient Code']));
-    State.labs     = State.labs.filter(r=>!codes.includes(r['Patient Code']));
-    ExportSel.clear();
-    renderPatientsList();
-    renderExportList();
-    toast(`Deleted ${codes.length} patients.`,'success');
-  }catch(e){
-    console.error(e); toast('Failed to delete selected patients.','danger');
-  }
+function firstWord(s){
+  const t = String(s||'').trim();
+  if (!t) return '';
+  const m = t.match(/^\S+/);
+  return m ? m[0] : t;
 }
 
-// ===== Print builder with scaling options =====
 function buildPrintPagesHTML(selectedCodes, options){
   const { scalePercent=100, fontPx=12, fitOne=false } = options||{};
   const usingSelected = selectedCodes && selectedCodes.length>0;
@@ -799,9 +782,9 @@ function buildPrintPagesHTML(selectedCodes, options){
   });
 
   const sections = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
-  const A4_CONTENT_HEIGHT_PX = 1030; // تقريب لارتفاع المساحة القابلة للطباعة
-  const HEAD_EST = 60;                // تقدير رأس الصفحة
-  const ROW_EST_FACTOR = 2.2;         // ارتفاع صف ≈ fontPx * 2.2
+  const A4_CONTENT_HEIGHT_PX = 1030; // تقريب
+  const HEAD_EST = 60;
+  const ROW_EST_FACTOR = 2.2;
 
   const pages = sections.map(sec=>{
     const list = bySec.get(sec);
@@ -812,53 +795,90 @@ function buildPrintPagesHTML(selectedCodes, options){
       return ka.raw.localeCompare(kb.raw);
     });
 
-    // تقدير scale إضافي لو وضع fit-one
+    // fit-one estimation
     let effectiveScale = scalePercent / 100;
     if (fitOne){
       const estHeight = HEAD_EST + (list.length * fontPx * ROW_EST_FACTOR);
       const needed = A4_CONTENT_HEIGHT_PX / estHeight;
-      if (needed < effectiveScale) effectiveScale = Math.max(0.5, needed); // لا ننزل أقل من 50%
+      if (needed < effectiveScale) effectiveScale = Math.max(0.5, needed);
     }
 
+    // Build rows with transformed fields:
     const rows = list.map(p=>{
-      const fields = [
-        p['Patient Code']||'',
-        p['Patient Name']||'',
-        p['Patient Age']||'',
-        p['Room']||'',
-        p['Admitting Provider']||'',
-        p['Diagnosis']||'',
-        p['Diet']||'',
-        p['Isolation']||'',
-        p['Comments']||''
-      ];
-      return '<tr>'+fields.map(v=>`<td>${String(v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</td>`).join('')+'</tr>';
+      const code   = escapeHTML(p['Patient Code']||'');
+      const name   = escapeHTML(p['Patient Name']||'');
+      const age    = escapeHTML(ageYearsOnly(p['Patient Age']||''));
+      const room   = escapeHTML(p['Room']||'');
+      const prov   = escapeHTML(firstWord(p['Admitting Provider']||'')); // first token only
+      const cause  = escapeHTML(p['Diagnosis']||'');
+      const iso    = String(p['Isolation']||'').trim();
+      const note   = escapeHTML(p['Comments']||'');
+
+      // isolation shading if not Standard
+      const isoLower = iso.toLowerCase();
+      const isoCellStyle = (iso && isoLower !== 'standard')
+        ? ' style="background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact;"'
+        : '';
+
+      // 8 columns (Diet removed), expand Notes implicitly by colgroup widths
+      return `<tr>
+        <td>${code}</td>
+        <td>${name}</td>
+        <td>${age}</td>
+        <td>${room}</td>
+        <td>${prov}</td>
+        <td>${cause}</td>
+        <td${isoCellStyle}>${escapeHTML(iso)}</td>
+        <td>${note}</td>
+      </tr>`;
     }).join('');
 
-    // نغلّف المحتوى داخل div عليه transform: scale(...)
+    // Colgroup to widen Notes, shrink others
+    // widths sum to ~100%
+    const colgroup = `
+      <colgroup>
+        <col style="width:10%">
+        <col style="width:18%">
+        <col style="width:6%">
+        <col style="width:8%">
+        <col style="width:10%">
+        <col style="width:18%">
+        <col style="width:10%">
+        <col style="width:20%">
+      </colgroup>`;
+
     const table = `
       <div class="print-page">
         <div class="print-scale" style="transform:scale(${effectiveScale}); transform-origin: top left; width:${(100/ effectiveScale).toFixed(2)}%; ">
           <div class="print-head" style="margin-bottom:8px">
-            <div class="print-title">Patient List — Section: ${sec}</div>
+            <div class="print-title">Patient List — Section: ${escapeHTML(sec)}</div>
             <div class="print-sub">Generated: ${Utils.formatDateTime(new Date().toISOString())}</div>
           </div>
           <table class="print-table" style="font-size:${fontPx}px">
+            ${colgroup}
             <thead>
               <tr>
-                <th>Patient Code</th><th>Patient Name</th><th>Patient Age</th><th>Room</th>
-                <th>Admitting Provider</th><th>Cause Of Admission</th><th>Diet</th><th>Isolation</th><th>Note</th>
+                <th>Patient Code</th>
+                <th>Patient Name</th>
+                <th>Age</th>
+                <th>Room</th>
+                <th>Admitting Provider</th>
+                <th>Cause Of Admission</th>
+                <th>Isolation</th>
+                <th>Notes</th>
               </tr>
             </thead>
-            <tbody>${rows || '<tr><td colspan="9">No patients</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="8">No patients</td></tr>'}</tbody>
           </table>
         </div>
       </div>`;
+
     return table;
   });
 
   return pages.join('\n');
 }
+
 function renderPrintRootAndPrint(){
   const root = q('#print-root'); if (!root) { toast('Print root missing.','danger'); return; }
   const selected = Array.from(ExportSel.values());
@@ -890,10 +910,30 @@ document.addEventListener('click', async (e)=>{
   }
   if (e.target.closest('#btn-export-move')){
     const target = q('#export-move-target')?.value || 'Default';
-    await moveSelectedPatients(target);
+    const codes = Array.from(ExportSel.values());
+    if (!codes.length) { toast('No patients selected.','warn'); return; }
+    for (const code of codes){
+      await Sheets.writePatientField(code,'Section', target);
+      const i = State.patients.findIndex(p=>p['Patient Code']===code);
+      if (i>=0) State.patients[i].Section = target;
+    }
+    renderPatientsList();
+    renderExportList();
+    toast(`Moved ${codes.length} patients to "${target}".`,'success');
   }
   if (e.target.closest('#btn-export-delete')){
-    await deleteSelectedPatients();
+    const codes = Array.from(ExportSel.values());
+    if (!codes.length) { toast('No patients selected.','warn'); return; }
+    if (!confirm('Delete selected patients? This cannot be undone.')) return;
+    await Sheets.bulkDeletePatients(codes);
+    State.patients = State.patients.filter(p=>!codes.includes(p['Patient Code']));
+    State.esas     = State.esas.filter(r=>!codes.includes(r['Patient Code']));
+    State.ctcae    = State.ctcae.filter(r=>!codes.includes(r['Patient Code']));
+    State.labs     = State.labs.filter(r=>!codes.includes(r['Patient Code']));
+    ExportSel.clear();
+    renderPatientsList();
+    renderExportList();
+    toast(`Deleted ${codes.length} patients.`,'success');
   }
   if (e.target.closest('#btn-export-print') || e.target.closest('#btn-export-print-footer')){
     renderPrintRootAndPrint();
