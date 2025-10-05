@@ -96,6 +96,17 @@
               <button data-filter="done" class="tab">Done</button>
             </div>
           </div>
+
+          <!-- Bulk actions toolbar (على القائمة الرئيسية) -->
+          <div id="patients-bulkbar" class="actions-row" style="margin-bottom:8px; flex-wrap:wrap">
+            <button id="plist-select-all" class="btn">Select All</button>
+            <button id="plist-clear" class="btn btn-ghost">Clear</button>
+            <span class="muted small" style="margin-left:auto">Selected actions:</span>
+            <select id="plist-move-target" class="small" style="padding:8px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text)"></select>
+            <button id="plist-move" class="btn">Move</button>
+            <button id="plist-delete" class="btn btn-danger">Delete</button>
+          </div>
+
           <div id="patients-list" class="list"></div>
         </section>
 
@@ -137,6 +148,28 @@
       <div class="modal-body">
         <div class="small muted" style="margin-bottom:8px">
           Select patients to include in the printable list. Pages will be grouped by Section and ordered by Room.
+        </div>
+
+        <!-- خيارات التحكم بالطباعة: قياس/خط/ملاءمة صفحة واحدة -->
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px">
+          <label class="field">
+            <span class="label">Page scale (%)</span>
+            <input id="export-scale" type="number" min="50" max="100" step="5" value="100" />
+          </label>
+          <label class="field">
+            <span class="label">Font size</span>
+            <select id="export-font">
+              <option value="12">Normal (12px)</option>
+              <option value="11">Compact (11px)</option>
+              <option value="10">Tight (10px)</option>
+            </select>
+          </label>
+          <label class="field" style="align-self:end">
+            <span class="label"> </span>
+            <label style="display:inline-flex; align-items:center; gap:6px">
+              <input id="export-fit-one" type="checkbox" /> Fit section on one page (attempt)
+            </label>
+          </label>
         </div>
 
         <div class="actions-row" style="margin-bottom:10px; flex-wrap:wrap">
