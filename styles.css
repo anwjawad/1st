@@ -1,0 +1,527 @@
+/* =========================
+   Palliative Rounds — Styles (Redesigned)
+   Dark/Light theme, modern cards, rich patient rows,
+   fullscreen modal with smooth transitions, accessible UI.
+   ========================= */
+
+/* ===== Theme tokens ===== */
+:root{
+  /* Dark */
+  --bg:#0f1220;
+  --bg-2:#111528;
+  --bg-3:#151a33;
+  --panel:#141932;
+  --card:#161c38;
+  --card-2:#1a2145;
+  --text:#e9ecff;
+  --muted:#9aa3c7;
+  --accent:#7c9cff;
+  --accent-2:#9ab0ff;
+  --primary:#6c8dff;
+  --danger:#ff5a7a;
+  --success:#42c989;
+  --warn:#ffbe55;
+  --chip:#202752;
+  --border:rgba(255,255,255,.08);
+  --shadow:0 14px 40px rgba(0,0,0,.35);
+  --radius:18px;
+  --radius-sm:12px;
+  --radius-xs:10px;
+  --gap:14px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --elev-1: 0 6px 20px rgba(0,0,0,.25);
+  --elev-2: 0 10px 30px rgba(0,0,0,.35);
+  --elev-3: 0 16px 48px rgba(0,0,0,.45);
+
+  --speed-fast:150ms;
+  --speed-med:200ms;
+  --speed-slow:250ms;
+
+  --ok:#42c989;
+
+  /* Scrollbar */
+  --scroll-track: rgba(255,255,255,.06);
+  --scroll-thumb: rgba(255,255,255,.22);
+}
+
+/* Light theme (optional: add class="theme-light" on <body> to activate) */
+body.theme-light, [data-theme="light"]{
+  --bg:#f7f8ff;
+  --bg-2:#fbfbff;
+  --bg-3:#eef1ff;
+  --panel:#ffffff;
+  --card:#ffffff;
+  --card-2:#f6f7ff;
+  --text:#101324;
+  --muted:#5e6482;
+  --accent:#3d5cff;
+  --accent-2:#5e7bff;
+  --primary:#3d5cff;
+  --danger:#cf2452;
+  --success:#1a9b68;
+  --warn:#b8700a;
+  --chip:#eef1ff;
+  --border:rgba(0,0,0,.08);
+  --shadow:0 10px 30px rgba(0,0,0,.08);
+
+  --scroll-track: rgba(0,0,0,.05);
+  --scroll-thumb: rgba(0,0,0,.18);
+}
+
+/* ===== Base ===== */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 70% -10%, rgba(124,156,255,.12), transparent 60%),
+    var(--bg);
+  color:var(--text);
+  font: 15px/1.55 Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* Smooth micro-interactions by default */
+*, *::before, *::after{
+  transition:
+    background-color var(--speed-med) ease,
+    border-color var(--speed-med) ease,
+    color var(--speed-med) ease,
+    box-shadow var(--speed-med) ease,
+    transform var(--speed-fast) ease,
+    opacity var(--speed-med) ease;
+}
+
+#app{display:flex; min-height:100vh}
+
+/* ===== Sidebar ===== */
+#sidebar{
+  width:300px; min-width:280px;
+  background:linear-gradient(180deg, var(--bg-2), var(--bg-3));
+  border-right:1px solid var(--border);
+  padding:18px 16px;
+  position:sticky; top:0; height:100vh; overflow:auto;
+}
+.brand{display:flex; align-items:center; gap:12px; margin-bottom:18px}
+.brand .logo{
+  width:42px; height:42px; border-radius:12px;
+  background:linear-gradient(135deg, var(--accent), #5a7bff);
+  display:grid; place-items:center; font-weight:800; color:white;
+  box-shadow: var(--elev-1);
+}
+.brand .title{font-weight:800; letter-spacing:.2px}
+.brand .subtitle{color:var(--muted); font-size:12px}
+
+.section{margin:18px 0}
+.section-title{color:var(--muted); font-size:12px; letter-spacing:.5px; margin-bottom:8px}
+.sections{display:flex; flex-direction:column; gap:8px}
+
+.pill{
+  background:var(--chip); color:var(--text);
+  border:1px solid var(--border);
+  padding:10px 12px; border-radius:12px; cursor:pointer;
+  text-align:left;
+  will-change: transform;
+}
+.pill:hover{border-color:#2a3572; transform:translateY(-1px)}
+.pill.active{background:#222a5a}
+
+/* ===== Main / Topbar ===== */
+#main{flex:1; display:flex; flex-direction:column}
+#topbar{
+  display:flex; align-items:center; gap:16px;
+  padding:14px 18px; border-bottom:1px solid var(--border);
+  background:rgba(20,26,50,.5); backdrop-filter:saturate(120%) blur(6px);
+  position:sticky; top:0; z-index:50;
+}
+body.theme-light #topbar{background:rgba(255,255,255,.7); backdrop-filter:saturate(120%) blur(6px);}
+#topbar input[type="search"]{
+  flex:1; background:var(--panel); color:var(--text);
+  border:1px solid var(--border); border-radius:14px; padding:10px 12px;
+  box-shadow: var(--elev-1);
+}
+#section-ops .btn{margin-left:8px}
+
+/* ===== Columns: اجعل المحتوى عمود واحد يملأ الصفحة ===== */
+#columns{
+  display:grid;
+  grid-template-columns: 1fr;   /* <-- كان 370px 1fr */
+  gap:16px;
+  padding:16px;
+}
+
+/* ===== Cards ===== */
+.card{
+  background: linear-gradient(180deg, var(--card), var(--card-2));
+  border:1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+.card .card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px}
+.card-title{font-weight:800; font-size:16px; letter-spacing:.2px}
+.actions-row{display:flex; gap:8px; flex-wrap:wrap}
+
+/* ===== Buttons / Chips ===== */
+.btn{
+  background:#222956; border:1px solid var(--border); color:var(--text);
+  padding:10px 14px; border-radius:12px; cursor:pointer;
+  will-change: transform;
+}
+.btn:hover{border-color:#2b3470; transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn-ghost{background:transparent}
+.btn-primary{background:linear-gradient(180deg, var(--primary), #5676ff); border-color:transparent; color:white; box-shadow: var(--elev-1)}
+.btn-primary:hover{filter:brightness(1.04)}
+.btn-danger{background:#3b0f1a; border-color:#5b1122; color:#ffcdd6}
+.w100{width:100%}
+
+.chip{display:inline-flex; align-items:center; background:var(--chip); border:1px solid var(--border); color:var(--text);
+  padding:5px 10px; border-radius:999px; font-size:12px; margin-right:6px}
+.chip.done{background:#1a3a2c; border-color:#2a6b52; color:#b6ffe2}
+
+/* Status badges for patient item */
+.status{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--border);
+  transform:translateZ(0);
+}
+.status.open{background:#232b61; color:#dce3ff}
+.status.done{background:#143527; color:#c1ffe6; border-color:#2a6b52}
+
+.dot{display:inline-block; width:8px; height:8px; border-radius:50%}
+.dot-green{background:var(--success)}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.mono{font-family:var(--mono)}
+
+/* ===== Patients list ===== */
+#patients-col .list{max-height: calc(100vh - 210px); overflow:auto; padding-right:4px}
+
+/* Rich patient card */
+#patients-col .row{
+  display:grid; grid-template-columns:1fr auto; gap:10px;
+  padding:12px; margin:10px 0; background:#141a36; border:1px solid var(--border);
+  border-radius:16px; cursor:default; will-change: transform, box-shadow;
+  box-shadow: var(--elev-1);
+}
+body.theme-light #patients-col .row{ background:#ffffff; }
+#patients-col .row:hover{border-color:#2a3572; background:#182044; transform:translateY(-1px)}
+body.theme-light #patients-col .row:hover{ background:#f6f7ff; }
+.row-title{font-weight:800; letter-spacing:.2px}
+.row-sub{color:var(--muted); font-size:12px; margin-top:2px}
+.row-tag{display:inline-block; background:#212956; padding:4px 10px; border-radius:999px; font-size:12px; border:1px solid var(--border)}
+.row-code{font-family:var(--mono); color:#b7c4ff; align-self:center}
+
+.patient-card .row-header{display:flex; align-items:center; justify-content:space-between; gap:10px}
+.patient-card .row-tags{margin-top:8px; display:flex; flex-wrap:wrap; gap:6px}
+.row-chip{
+  display:inline-flex; align-items:center; font-size:12px;
+  padding:4px 8px; border-radius:999px; border:1px solid var(--border); background:var(--chip);
+}
+.row-chip.abn{background:#341323; border-color:#5e1733; color:#ff9fb0}
+.row-chip.sym{background:#20314f; border-color:#2a3d6e; color:#b7d2ff}
+
+.linkish{
+  color:var(--accent-2); cursor:pointer; text-decoration:underline dotted;
+}
+.linkish:hover{filter:brightness(1.1)}
+
+/* ===== Dashboard ===== */
+#dashboard-panel[data-empty="true"] .section-block{display:none}
+#dashboard-panel .empty{
+  display:grid; place-items:center; text-align:center; padding:40px 10px; color:var(--muted)
+}
+#dashboard-panel .dots:before{
+  content:""; width:64px; height:12px; border-radius:999px;
+  background: radial-gradient(circle at 10% 50%, #85a2ff 15%, transparent 16%) ,
+              radial-gradient(circle at 40% 50%, #72ffe1 15%, transparent 16) ,
+              radial-gradient(circle at 70% 50%, #ff7ea2 15%, transparent 16);
+  display:block; filter:blur(.6px); opacity:.8; margin-bottom:8px;
+}
+
+.section-block{margin:14px 0}
+.block-head{display:flex; align-items:center; gap:12px; margin-bottom:8px}
+.block-title{font-weight:800}
+
+.grid{display:grid; gap:10px}
+.grid-2{grid-template-columns:repeat(2, minmax(0,1fr))}
+@media (max-width: 980px){ .grid-2{grid-template-columns:1fr} }
+
+.field{display:flex; flex-direction:column; gap:6px}
+.field .label{color:var(--muted); font-size:12px}
+.field input, .field textarea{
+  background:#101633; color:var(--text);
+  border:1px solid var(--border); border-radius:12px; padding:10px 12px; width:100%;
+  box-shadow: inset 0 0 0 1px transparent;
+}
+body.theme-light .field input, body.theme-light .field textarea{ background:#ffffff; }
+.field textarea{resize:vertical}
+
+/* Bio grid fields */
+#bio-grid .field{background:#12183a; border:1px solid var(--border); border-radius:12px; padding:10px}
+body.theme-light #bio-grid .field{background:#f7f8ff}
+
+/* ===== Unified Symptoms (ESAS + CTCAE) ===== */
+.score-grid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; }
+@media (min-width:1200px){ .score-grid{grid-template-columns: repeat(3, minmax(0,1fr));} }
+
+.score-item{
+  background:#12183a; border:1px solid var(--border); border-radius:14px; padding:10px;
+  box-shadow: var(--elev-1);
+}
+body.theme-light .score-item{ background:#f7f8ff; }
+
+.score-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px}
+.score-title{font-weight:700}
+.score-select{display:flex; flex-wrap:wrap; gap:6px}
+
+.score-btn{
+  padding:6px 9px; border-radius:9px; background:#0f1534; border:1px solid #2a335f; min-width:34px; text-align:center; cursor:pointer;
+}
+.score-btn.active{background:#1f2b66; border-color:#5063c9}
+
+.symptom-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:8px 10px; border-radius:999px; cursor:pointer; user-select:none;
+  background:#0f1534; border:1px solid #2a335f; font-size:13px;
+}
+.symptom-chip:hover{transform:translateY(-1px)}
+.symptom-chip.active{ background:#1f2b66; border-color:#5063c9; box-shadow: var(--elev-1); }
+
+.score-note{ margin-top:8px }
+.score-note textarea{
+  width:100%; background:#0f1534; border:1px dashed #2e3a7a; padding:8px 10px; border-radius:10px; color:var(--text);
+}
+
+/* ===== Labs grid ===== */
+.labs-grid{ display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0,1fr)); }
+@media (min-width:1200px){ .labs-grid{grid-template-columns: repeat(3, minmax(0,1fr));} }
+.lab{
+  background:#11173a; border:1px solid var(--border); border-radius:14px; padding:10px;
+  box-shadow: var(--elev-1);
+}
+.lab-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px}
+.lab-name{font-weight:700}
+.lab input{
+  width:100%; background:#0f1430; border:1px solid #2b3362; border-radius:10px; padding:8px 10px; color:var(--text)
+}
+
+.lab.abnormal-high{border-color:#6b0b22; box-shadow:0 0 0 1px rgba(255,0,55,.25) inset}
+.lab.abnormal-high .lab-name{color:#ff9fb0; font-weight:800}
+.lab.abnormal-low{border-color:#0b3f6b; box-shadow:0 0 0 1px rgba(80,180,255,.25) inset}
+.lab.abnormal-low .lab-name{color:#9fd2ff; font-weight:800}
+
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px}
+.chips .chip.high{background:#341323; border-color:#5e1733; color:#ff9fb0}
+.chips .chip.low{background:#0d2a44; border-color:#10476f; color:#bfe0ff}
+
+/* ===== Tabs inside cards ===== */
+.tabs{display:flex; gap:8px}
+.tab{
+  background:#1b224a; border:1px solid var(--border); color:var(--text);
+  border-radius:999px; padding:6px 12px; cursor:pointer; font-size:13px;
+}
+.tab.active{background:#26306a; border-color:#3a4aa6}
+.tabpanes{margin-top:10px}
+.tabpane.active{display:block}
+.tabpane{display:none}
+
+/* ===== Toasts ===== */
+#toast-root{
+  position:fixed; right:16px; bottom:16px; display:flex; flex-direction:column; gap:8px; z-index:2000;
+}
+.toast{
+  background:#1a2046; border:1px solid var(--border); color:var(--text);
+  padding:10px 12px; border-radius:12px; box-shadow: var(--shadow); max-width:360px
+}
+.toast.success{background:#102a20; border-color:#245a43; color:#ccffe9}
+.toast.danger{background:#3b101a; border-color:#7a1e34; color:#ffd6de}
+.toast.warn{background:#3a2d10; border-color:#7a6321; color:#ffe7b4}
+
+/* ===== Modal ===== */
+.modal{
+  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  background:rgba(6,8,16,.55); z-index:1500; opacity:1; transform:none;
+}
+.modal.hidden{display:none}
+.modal-card{
+  width:min(720px, 92vw);
+  background:var(--panel); border:1px solid var(--border); border-radius:16px;
+  box-shadow: var(--shadow); overflow:hidden;
+  transform: translateY(12px); opacity:0;
+}
+.modal-header, .modal-footer{padding:12px 14px; background:#12183a; border-bottom:1px solid var(--border)}
+.modal-footer{border-top:1px solid var(--border); border-bottom:none; display:flex; gap:8px; justify-content:flex-end}
+.modal-body{padding:14px}
+
+/* Fullscreen patient modal */
+.modal-card-full{
+  width:min(1400px, 96vw);
+  height:94vh;
+  display:flex; flex-direction:column;
+  border-radius:18px;
+}
+.modal-body.modal-body-pad{
+  padding:18px;
+  overflow:auto;
+}
+.modal:not(.hidden) .modal-card{
+  transform: translateY(0); opacity:1;
+  transition: transform var(--speed-med) ease, opacity var(--speed-med) ease;
+}
+
+/* ===== Import CSV: scrollable preview ===== */
+#csv-preview{
+  max-height:60vh;
+  overflow:auto;
+  border:1px dashed var(--border);
+  border-radius:12px;
+  padding:8px;
+  background: linear-gradient(180deg, var(--card), var(--card-2));
+}
+#csv-preview table{
+  width:max(780px, 100%);
+  white-space:nowrap;
+}
+
+/* ===== Misc ===== */
+#patients-col .tabs .tab.active,
+#patients-col .tabs .tab:hover{background:#243062}
+.scroll{overflow:auto}
+
+/* Focus styles for a11y */
+:focus{outline:2px solid rgba(124,156,255,.45); outline-offset:2px}
+
+/* Custom scrollbars */
+#patients-col .list,
+#csv-preview,
+.modal-body,
+body{
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+#patients-col .list::-webkit-scrollbar,
+#csv-preview::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar,
+body::-webkit-scrollbar { width:10px; height:10px; }
+#patients-col .list::-webkit-scrollbar-track,
+#csv-preview::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track { background: var(--scroll-track); border-radius:999px; }
+#patients-col .list::-webkit-scrollbar-thumb,
+#csv-preview::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius:999px; }
+
+/* Responsive tweaks */
+@media (max-width: 1100px){
+  #columns{grid-template-columns: 1fr}
+  #sidebar{position:static; height:auto}
+  .modal-card-full{ width:96vw; height:92vh; border-radius:16px; }
+}
+
+/* ===== Micro-interactions performance hints ===== */
+.pill, .btn, .patient-card, .modal-card{
+  will-change: transform, opacity;
+}
+
+/* ==========================================
+   Patients grid redesign (squares-like tiles)
+   ========================================== */
+#patients-col #patients-list.list{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap:14px;
+  max-height:none;
+  overflow:visible;
+  padding-right:0;
+  margin:0;
+}
+
+#patients-col .row.patient-card{
+  margin:0;
+  min-height: 170px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+
+#patients-col .patient-card .row-header{ margin-bottom:6px; }
+#patients-col .patient-card .row-tags{ margin-top:6px; }
+
+/* =========================
+   Print styles for Patient List (A4)
+   ========================= */
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+body[data-printing="true"] #app,
+body[data-printing="true"] #toast-root,
+body[data-printing="true"] #import-modal,
+body[data-printing="true"] #settings-modal,
+body[data-printing="true"] #patient-modal,
+body[data-printing="true"] .modal { display:none !important; }
+
+body[data-printing="true"] #print-root { display:block !important; }
+
+/* Generic print reset */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #app, #toast-root, .modal { display:none !important; }
+  #print-root { display:block !important; }
+}
+
+/* Page wrapper per section */
+#print-root .print-page {
+  page-break-after: always;
+  break-after: page;
+  padding: 6mm;
+  background: white;
+  border: none;
+}
+
+#print-root .print-head {
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  margin-bottom: 8px;
+}
+
+#print-root .print-title {
+  font-weight: 800;
+  font-size: 18px;
+}
+
+#print-root .print-sub {
+  font-size: 12px;
+  color: #555;
+}
+
+#print-root .print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+#print-root .print-table th,
+#print-root .print-table td {
+  border: 1px solid #000;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+#print-root .print-table thead th {
+  background: #eee;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}

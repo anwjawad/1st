@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Palliative Rounds — Sheets-only</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:,">
+  <style>
+    /* تعديل خاص لشبكة المرضى */
+    #patients-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    #patients-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    #patients-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+    }
+    #patients-list .row {
+      margin: 0 !important; /* إزالة الهوامش القديمة */
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div class="brand">
+        <div class="logo">PR</div>
+        <div class="titles">
+          <div class="title">Palliative Rounds</div>
+          <div class="subtitle">Sheets-only, Modernized</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">SECTIONS</div>
+        <div id="sections-list" class="sections"></div>
+        <button id="btn-add-section" class="btn w100">+ Add Section</button>
+      </div>
+
+      <div class="section">
+        <div class="section-title">ACTIONS</div>
+        <button id="btn-new-patient" class="btn btn-primary w100">+ New Patient</button>
+        <button id="btn-import" class="btn w100">Import CSV</button>
+        <button id="btn-export-template" class="btn w100">Export CSV Template</button>
+        <button id="btn-export-patient-list" class="btn w100">Export Patient List</button>
+        <button id="btn-delete-all-pats" class="btn btn-danger w100">Delete All Patients in Section</button>
+        <button id="btn-refresh" class="btn w100">Refresh</button>
+      </div>
+
+      <div class="section small">
+        <div class="section-title">SYNC</div>
+        <div id="sync-indicator">
+          <span class="dot dot-green"></span> <span id="sync-text">Idle</span><br/>
+          <span class="muted">Mode: Apps Script Bridge</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <button id="open-settings" class="btn w100" type="button">Settings</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main id="main">
+      <!-- Topbar -->
+      <div id="topbar">
+        <input id="search" type="search" placeholder="Search patients…" />
+        <div id="section-ops">
+          <span id="active-section-label">Section: <strong id="active-section-name">Default</strong></span>
+          <button id="btn-rename-section" class="btn btn-ghost">Rename Section</button>
+          <button id="btn-delete-section" class="btn btn-danger btn-ghost">Delete Section</button>
+        </div>
+      </div>
+
+      <div id="columns">
+        <!-- Patients list -->
+        <section id="patients-col">
+          <div id="patients-header">
+            <div class="card-title">Patients</div>
+            <div class="tabs small">
+              <button data-filter="all" class="tab active">All</button>
+              <button data-filter="open" class="tab">Open</button>
+              <button data-filter="done" class="tab">Done</button>
+            </div>
+          </div>
+          <div id="patients-list" class="list"></div>
+        </section>
+
+        <!-- Dashboard column not used (dashboard is in modal) -->
+        <section id="dashboard-col" style="display:none;"></section>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Toast root -->
+  <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Import CSV modal -->
+  <div id="import-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Import CSV</h3>
+        <button class="icon-btn" data-close-modal="import-modal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input id="csv-file-input" type="file" accept=".csv,text/csv" />
+        <div id="csv-preview" style="margin-top:12px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-modal="import-modal">Cancel</button>
+        <button id="btn-import-confirm" class="btn btn-primary">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Patient List modal -->
+  <div id="export-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Export Patient List</h3>
+        <button class="icon-btn" data-close-modal="export-modal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="small muted" style="margin-bottom:8px">
+          Select patients to include in the printable list. Pages will be grouped by Section and ordered by Room.
+        </div>
+
+        <div class="actions-row" style="margin-bottom:10px; flex-wrap:wrap">
+          <button id="btn-export-select-all" class="btn">Select All</button>
+          <button id="btn-export-clear" class="btn btn-ghost">Clear</button>
+          <span class="muted small" style="margin-left:auto">Bulk actions:</span>
+          <button id="btn-export-move" class="btn">Move Selected</button>
+          <button id="btn-export-delete" class="btn btn-danger">Delete Selected</button>
+          <button id="btn-export-print" class="btn btn-primary">Print / Save as PDF</button>
+        </div>
+
+        <div class="small" style="margin-bottom:6px">Move selected to section:</div>
+        <div class="grid" style="grid-template-columns:1fr 2fr; gap:8px; margin-bottom:10px">
+          <select id="export-move-target" style="padding:8px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text)">
+          </select>
+          <input id="export-search" type="search" placeholder="Search patients…" style="padding:8px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text)"/>
+        </div>
+
+        <div id="export-list" class="scroll" style="max-height:60vh; border:1px dashed var(--border); border-radius:12px; padding:8px">
+          <!-- JS will render grouped by section with checkboxes -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-modal="export-modal">Close</button>
+        <button id="btn-export-print-footer" class="btn btn-primary">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Settings</h3>
+        <button class="icon-btn" data-close-modal="settings-modal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span class="label">Spreadsheet ID</span>
+          <input id="set-spreadsheet-id" type="text" placeholder="1AbCdEFGhIJKL..." />
+        </label>
+        <label class="field">
+          <span class="label">Apps Script Web App URL (Bridge)</span>
+          <input id="set-bridge-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+        </label>
+        <label class="field">
+          <span class="label">AI Proxy Endpoint (optional)</span>
+          <input id="set-ai-endpoint" type="url" placeholder="https://your-proxy.example/summarize" />
+        </label>
+        <div class="muted small">Leave OAuth off. All writes go through the Apps Script Bridge.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-modal="settings-modal">Close</button>
+        <button id="btn-settings-save" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Patient Dashboard modal (fullscreen) -->
+  <div id="patient-modal" class="modal hidden" role="dialog" aria-modal="true" data-code="">
+    <div class="modal-card modal-card-full">
+      <div class="modal-header">
+        <h3 id="patient-modal-title">Patient Dashboard</h3>
+        <button class="icon-btn" data-close-modal="patient-modal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body modal-body-pad">
+        <div class="card">
+          <div class="card-head">
+            <div id="dashboard-title" class="card-title">Dashboard</div>
+            <div class="actions-row">
+              <button id="btn-mark-done" class="btn btn-ghost">Mark Done</button>
+              <button id="btn-delete-patient" class="btn btn-danger btn-ghost">Delete Patient</button>
+              <button id="btn-duplicate" class="btn btn-ghost">Duplicate</button>
+              <button id="btn-ai" class="btn btn-primary">AI Summary</button>
+            </div>
+          </div>
+
+          <div id="dashboard-panel" data-empty="true">
+            <div class="empty">
+              <div class="dots"></div>
+              <div class="empty-text">Select a patient</div>
+              <div class="empty-sub">Pick a patient on the left to view details, symptoms, and labs.</div>
+            </div>
+
+            <!-- BIO -->
+            <div class="section-block">
+              <div class="block-head">
+                <div class="block-title">Bio</div>
+                <div class="muted small" id="bio-updated"></div>
+              </div>
+              <div id="bio-grid" class="grid grid-2"></div>
+            </div>
+
+            <!-- HPI -->
+            <div class="section-block">
+              <div class="block-head"><div class="block-title">HPI</div></div>
+              <div class="grid grid-2">
+                <label class="field">
+                  <span class="label">Cause of admission</span>
+                  <textarea id="hpi-diagnosis" rows="2" placeholder="Cause of admission…"></textarea>
+                </label>
+                <label class="field">
+                  <span class="label">HPI Initial</span>
+                  <textarea id="hpi-initial" rows="2" placeholder="Initial HPI…"></textarea>
+                </label>
+                <label class="field">
+                  <span class="label">HPI Previous</span>
+                  <textarea id="hpi-previous" rows="2" placeholder="Previous HPI…"></textarea>
+                </label>
+                <label class="field">
+                  <span class="label">HPI Current</span>
+                  <textarea id="hpi-current" rows="2" placeholder="Current HPI…"></textarea>
+                </label>
+              </div>
+            </div>
+
+            <div class="section-block">
+              <div class="grid grid-2">
+                <label class="field">
+                  <span class="label">Patient Assessment</span>
+                  <textarea id="patient-assessment" rows="3" placeholder="Assessment…"></textarea>
+                </label>
+                <label class="field">
+                  <span class="label">Medication List</span>
+                  <textarea id="medication-list" rows="3" placeholder="Medications…"></textarea>
+                </label>
+              </div>
+              <label class="field">
+                <span class="label">Latest Notes</span>
+                <textarea id="latest-notes" rows="3" placeholder="Notes…"></textarea>
+              </label>
+            </div>
+
+            <!-- Unified Patient Symptoms -->
+            <div class="section-block">
+              <div class="block-head">
+                <div class="block-title">Patient’s Symptoms</div>
+                <div class="muted small" id="symptoms-updated"></div>
+              </div>
+              <div id="symptoms-grid" class="score-grid"></div>
+            </div>
+
+            <!-- Labs -->
+            <div class="section-block">
+              <div class="block-head">
+                <div class="block-title">Labs</div>
+                <div class="muted small" id="labs-updated"></div>
+              </div>
+              <div id="labs-summary" class="chips"></div>
+              <div id="labs-grid" class="labs-grid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-modal="patient-modal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden print root -->
+  <div id="print-root" style="display:none"></div>
+
+  <!-- Entry point: App.start -->
+  <script type="module">
+    import { App } from './js/app.js';
+    App.start();
+  </script>
+</body>
+</html>
