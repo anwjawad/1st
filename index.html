@@ -128,7 +128,7 @@
         <button class="icon-btn" data-close-modal="import-modal" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
-        <input id="csv-file-input" type="file" accept=".csv,text/csv" />
+        <input id="csv-file-input" type="file" accept=".csv,text/csv,application/pdf" />
         <div id="csv-preview" style="margin-top:12px;"></div>
       </div>
       <div class="modal-footer">
@@ -333,6 +333,8 @@
   <!-- Hidden print root -->
   <div id="print-root" style="display:none"></div>
 <script type="module" src="./js/themes.js"></script>
+  <script type="module" src="./js/pdf-import.js"></script>
+
   <!-- Entry point: App.start -->
   <script type="module">
     import { App } from './js/app.js';
