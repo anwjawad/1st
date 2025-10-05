@@ -1,107 +1,188 @@
 // js/pdf-import.js
-// Add-on: Import PDF as if CSV (no edits to importer.js)
-// - Dynamically loads pdf.js
-// - Extracts text tables -> rows
-// - Injects into existing Import modal preview and Importer pipeline
+// Import PDF as if CSV (+ optional OCR with Tesseract.js)
+// - Keeps importer.js untouched
+// - Adds small controls in Import modal: Enable OCR + language
 
 const PdfImport = (() => {
-  // CDN for pdf.js (ESM)
+  // CDNs
   const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
-  let pdfjs = null;
+  const TESS_URL  = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
 
-  // Expected CSV column order (template used by your app)
+  let pdfjs = null;
+  let Tesseract = null;
+
+  // Your app's CSV header order
   const HEADERS = [
     'Patient Code','Patient Name','Patient Age','Room','Diagnosis','Section',
     'Admitting Provider','Diet','Isolation','Comments',
     'Symptoms (comma-separated)','Symptoms Notes (JSON map)','Labs Abnormal (comma-separated)'
   ];
 
-  // Load pdf.js once
+  // ====== Lazy loaders ======
   async function ensurePDFJS() {
     if (pdfjs) return pdfjs;
     pdfjs = await import(PDFJS_URL);
-    // worker (best-effort)
+    // worker
     if (pdfjs.GlobalWorkerOptions) {
       const worker = PDFJS_URL.replace('pdf.min.mjs', 'pdf.worker.min.js');
       pdfjs.GlobalWorkerOptions.workerSrc = worker;
     }
     return pdfjs;
   }
+  async function ensureTesseract() {
+    if (Tesseract) return Tesseract;
+    // load UMD
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = TESS_URL;
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    // global
+    // eslint-disable-next-line no-undef
+    Tesseract = window.Tesseract;
+    return Tesseract;
+  }
 
-  // Extract raw text per page
-  async function extractTextFromPDF(file) {
+  // ====== UI helpers in Import modal ======
+  function injectControls() {
+    const modal = document.getElementById('import-modal');
+    if (!modal) return;
+    const body = modal.querySelector('.modal-body');
+    if (!body || body.querySelector('#pdf-extra-controls')) return;
+
+    const box = document.createElement('div');
+    box.id = 'pdf-extra-controls';
+    box.style.cssText = 'margin-top:10px; display:grid; gap:8px;';
+    box.innerHTML = `
+      <div class="grid" style="grid-template-columns: auto 1fr auto; gap:8px; align-items:end;">
+        <label class="checkbox" style="gap:8px">
+          <input id="pdf-enable-ocr" type="checkbox" />
+          <span>Enable OCR (scanned PDFs)</span>
+        </label>
+
+        <label class="field" style="max-width:240px">
+          <span class="label">OCR language</span>
+          <select id="pdf-ocr-lang">
+            <option value="eng" selected>English (eng)</option>
+            <option value="ara">Arabic (ara)</option>
+          </select>
+        </label>
+
+        <div style="display:flex; gap:8px">
+          <button id="pdf-reparse" class="btn">Re-parse</button>
+        </div>
+      </div>
+      <div class="small muted">Tip: keep OCR off for digital PDFs (faster). Turn it on for scanned PDFs (images).</div>
+    `;
+    body.insertBefore(box, document.getElementById('csv-preview'));
+  }
+  function getControls() {
+    return {
+      ocrEnabled: !!document.getElementById('pdf-enable-ocr')?.checked,
+      ocrLang: document.getElementById('pdf-ocr-lang')?.value || 'eng'
+    };
+  }
+  function wireReparse(fileRef) {
+    const btn = document.getElementById('pdf-reparse');
+    if (!btn) return;
+    btn.onclick = () => {
+      if (fileRef.current) handlePDF(fileRef.current, /*forceOCR*/getControls().ocrEnabled, /*lang*/getControls().ocrLang);
+    };
+  }
+
+  // ====== PDF extract (text first, then OCR fallback) ======
+  async function extractTextWithPDFJS(file) {
     await ensurePDFJS();
     const buf = await file.arrayBuffer();
     const pdf = await pdfjs.getDocument({ data: buf }).promise;
-    const pages = [];
+
+    const linesAll = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      // Join items into lines by y position
+      const content = await page.getTextContent({ normalizeWhitespace: true });
+      const items = content.items || [];
+      // group by line using item.y (transform[5]) with tolerance
+      const tol = 3;
+      let y = null; let line = [];
       const lines = [];
-      let currentY = null, currentLine = [];
-      const tol = 3; // y tolerance
-      content.items.forEach(it => {
-        const y = Math.round(it.transform[5]);
-        if (currentY === null) { currentY = y; }
-        if (Math.abs(y - currentY) <= tol) {
-          currentLine.push(it.str);
+      items.forEach(it => {
+        const yy = Math.round(it.transform[5]);
+        if (y === null) y = yy;
+        if (Math.abs(yy - y) <= tol) {
+          line.push(it.str);
         } else {
-          lines.push(currentLine.join(' '));
-          currentLine = [it.str];
-          currentY = y;
+          if (line.length) lines.push(line.join(' '));
+          line = [it.str]; y = yy;
         }
       });
-      if (currentLine.length) lines.push(currentLine.join(' '));
-      pages.push(lines.join('\n'));
+      if (line.length) lines.push(line.join(' '));
+      linesAll.push(lines.join('\n'));
     }
-    return pages.join('\n');
+    return linesAll.join('\n');
   }
 
-  // Heuristic: parse table-ish text into rows/cols
+  async function extractTextWithOCR(file, lang='eng') {
+    await ensurePDFJS();
+    await ensureTesseract();
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data: buf }).promise;
+
+    const parts = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 }); // upscale for better OCR
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const { data: { text } } = await Tesseract.recognize(canvas, lang, {
+        // logger: m => console.log(m), // uncomment to debug progress
+      });
+      parts.push(text || '');
+    }
+    return parts.join('\n');
+  }
+
+  // ====== Parse text -> rows ======
   function parseRows(text) {
     const rawLines = text
       .split(/\r?\n/)
       .map(s => s.replace(/\u00A0/g, ' ').trim())
       .filter(Boolean);
 
-    // Try to detect header line
-    let headerIdx = rawLines.findIndex(l => /patient\s*code/i.test(l) && /patient\s*name/i.test(l));
+    // find header line (best guess)
+    let headerIdx = rawLines.findIndex(l =>
+      /patient\s*code/i.test(l) && /patient\s*name/i.test(l)
+    );
     if (headerIdx === -1) headerIdx = 0;
 
     const dataLines = rawLines.slice(headerIdx + 1);
 
-    // Split line into cells:
-    // 1) prefer commas
-    // 2) else split by 2+ spaces
     const splitLine = (line) => {
       if (line.includes(',')) return line.split(',').map(s => s.trim());
       return line.split(/\s{2,}/).map(s => s.trim());
     };
 
-    // Normalize and pad/truncate to columns length
     const COLS = HEADERS.length;
     const rows = [];
     for (const ln of dataLines) {
       const cells = splitLine(ln);
-      // skip obvious non-data lines
       if (cells.length < 3) continue;
-      // heuristics: try to map common orders (Code, Name, Age, Room, Provider, Diagnosis, Diet, Isolation, Comments)
-      // If more than COLS, cut; if less, pad
       const arr = new Array(COLS).fill('');
-      // best-effort mapping (expects first ~9 cols in order)
+      // naive mapping for first ~9 columns
       for (let i = 0; i < Math.min(cells.length, 9); i++) arr[i] = cells[i];
 
-      // Defaults for the trailing app-specific cols:
-      // Section: if empty -> "Default"
+      // Section default
       if (!arr[5]) arr[5] = 'Default';
-      // Symptoms columns left empty if not present
       rows.push(arr.slice(0, COLS));
     }
     return rows;
   }
 
-  // Render preview table
+  // ====== Preview ======
   function renderPreview(rows) {
     const host = document.getElementById('csv-preview');
     if (!host) return;
@@ -112,7 +193,7 @@ const PdfImport = (() => {
     table.style.width = '100%';
 
     const thead = document.createElement('thead');
-    const hr = document.createElement('tr');
+    const trh = document.createElement('tr');
     HEADERS.forEach(h => {
       const th = document.createElement('th');
       th.textContent = h;
@@ -120,8 +201,9 @@ const PdfImport = (() => {
       th.style.padding = '6px 8px';
       th.style.textAlign = 'left';
       th.style.background = 'rgba(124,156,255,.10)';
-      thead.appendChild(hr).appendChild(th);
+      trh.appendChild(th);
     });
+    thead.appendChild(trh);
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
@@ -140,53 +222,97 @@ const PdfImport = (() => {
     host.appendChild(table);
   }
 
-  // Wire input to intercept PDF and feed Importer
+  // ====== Glue to Importer ======
+  function mountRowsToImporter(rows) {
+    window.Importer = window.Importer || {};
+    window.Importer.consumeValidatedRows = () => rows;
+    const btn = document.getElementById('btn-import-confirm');
+    if (btn) btn.disabled = false;
+  }
+
+  // ====== Main handler ======
+  async function handlePDF(file, forceOCR=false, ocrLang='eng') {
+    const previewHost = document.getElementById('csv-preview');
+    if (previewHost) {
+      previewHost.innerHTML = '<div class="small muted">Parsing PDF…</div>';
+    }
+
+    try {
+      let text = '';
+      let usedOCR = false;
+
+      if (!forceOCR) {
+        text = await extractTextWithPDFJS(file);
+        // if text is too short (likely scanned), fallback to OCR
+        if (!text || text.replace(/\s+/g, '').length < 50) {
+          usedOCR = true;
+          text = await extractTextWithOCR(file, ocrLang);
+        }
+      } else {
+        usedOCR = true;
+        text = await extractTextWithOCR(file, ocrLang);
+      }
+
+      const rows = parseRows(text);
+      if (!rows.length) {
+        alert('Could not detect table rows from this PDF.');
+        previewHost && (previewHost.innerHTML = '');
+        return;
+      }
+
+      renderPreview(rows);
+      mountRowsToImporter(rows);
+
+      if (usedOCR) {
+        const tip = document.createElement('div');
+        tip.className = 'small muted';
+        tip.style.marginTop = '6px';
+        tip.textContent = `OCR (${ocrLang}) used. Verify columns before import.`;
+        previewHost?.appendChild(tip);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to parse this PDF. Try changing OCR setting or export as CSV.');
+      previewHost && (previewHost.innerHTML = '');
+    }
+  }
+
+  // ====== Bind file input ======
   function bindInput() {
     const input = document.getElementById('csv-file-input');
     if (!input) return;
 
+    // Keep a ref to last file for "Re-parse" button
+    const fileRef = { current: null };
+
     input.addEventListener('change', async (e) => {
       const f = e.target.files && e.target.files[0];
-      if (!f || f.type !== 'application/pdf') return; // let importer.js handle csv
+      if (!f) return;
+      fileRef.current = f;
 
-      // Parse PDF -> rows
-      try {
-        const txt = await extractTextFromPDF(f);
-        const rows = parseRows(txt);
-        if (!rows.length) {
-          alert('No table-like content detected in this PDF.');
-          return;
-        }
-        renderPreview(rows);
+      // Only intercept PDFs; CSV stays handled by importer.js
+      if (f.type !== 'application/pdf') return;
 
-        // Monkey-patch Importer.consumeValidatedRows to return our rows
-        // (Non-destructive: only for this session of the modal)
-        window.Importer = window.Importer || {};
-        window.Importer.consumeValidatedRows = () => rows;
+      injectControls();
+      wireReparse(fileRef);
 
-        // Enable the confirm button if disabled
-        const btn = document.getElementById('btn-import-confirm');
-        if (btn) btn.disabled = false;
-
-      } catch (err) {
-        console.error(err);
-        alert('Failed to parse PDF. Try exporting the PDF as text or CSV.');
-      }
+      const { ocrEnabled, ocrLang } = getControls();
+      await handlePDF(f, ocrEnabled, ocrLang);
     });
   }
 
-  function initWhenModalAppears() {
-    // The import modal is created in DOM already; just bind when DOM ready
+  function observeModal() {
     const obs = new MutationObserver(() => {
       if (document.getElementById('csv-file-input')) {
         bindInput();
+        obs.disconnect();
       }
     });
     obs.observe(document.body, { childList: true, subtree: true });
   }
 
   function init() {
-    initWhenModalAppears();
+    observeModal();
   }
 
   return { init };
