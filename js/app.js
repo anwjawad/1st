@@ -1,7 +1,8 @@
 // js/app.js
 // Palliative Rounds — App Orchestrator
-// Fixes: robust write-through for text fields (Bio/HPI/etc) without touching dashboard.js
-// + previous fixes (modal delete, cascade cleanup, symptoms, templates, etc.)
+// + Bulk ops in main list (select/move/delete)
+// + Export Patient List with print scaling (scale/font/fit-one)
+// + Robust write-through for text fields
 
 import { Sheets } from './sheets.js';
 import { Patients } from './patients.js';
@@ -26,11 +27,9 @@ const DEFAULTS = {
 })();
 
 // ===== Helpers =====
-// --- Export helpers ---
 function toRoomKey(v){
   const s = String(v || '').trim();
   if (!s) return {num: Number.POSITIVE_INFINITY, raw: ''};
-  // extract first number for numeric sort; fallback to string
   const m = s.match(/\d+/);
   const num = m ? parseInt(m[0], 10) : Number.NaN;
   return { num: Number.isNaN(num) ? Number.POSITIVE_INFINITY : num, raw: s.toLowerCase() };
@@ -77,6 +76,8 @@ const State = {
   ready:false, loading:false, filter:'all', search:'',
   activeSection:'Default', sections:['Default'],
   patients:[], esas:[], ctcae:[], labs:[],
+  // main-list selection
+  sel: new Set(),
   config:{
     spreadsheetId: localStorage.getItem('pr.sheet')||'',
     bridgeUrl: localStorage.getItem('pr.bridge')||'',
@@ -95,11 +96,14 @@ function renderSections(){
     btn.addEventListener('click',()=>{
       State.activeSection=name;
       const label=q('#active-section-name'); if (label) label.textContent = name;
+      State.sel.clear();
       renderPatientsList(); Dashboard.clearEmpty?.(true);
+      populateMoveTargets();
     });
     root.appendChild(btn);
   });
   const label=q('#active-section-name'); if (label) label.textContent = State.activeSection || 'Default';
+  populateMoveTargets();
 }
 function symptomsPreview(p){
   const s=(p['Symptoms']||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -127,10 +131,24 @@ function renderPatientsList(){
     const row=document.createElement('div'); row.className='row patient-card'; row.dataset.code=p['Patient Code']||'';
     const left=document.createElement('div');
 
+    // Header: checkbox + name + status
     const header=document.createElement('div'); header.className='row-header';
+    const headLeft=document.createElement('div'); headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.style.gap='8px';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'plist-cb';
+    cb.checked = State.sel.has(p['Patient Code']);
+    cb.addEventListener('change', ()=>{
+      if (cb.checked) State.sel.add(p['Patient Code']);
+      else State.sel.delete(p['Patient Code']);
+    });
+
     const name=document.createElement('div'); name.className='row-title linkish'; name.textContent=p['Patient Name']||'(Unnamed)';
+    headLeft.appendChild(cb); headLeft.appendChild(name);
+
     const badge=document.createElement('span'); badge.className='status ' + (p['Done']?'done':'open'); badge.textContent=p['Done']?'Done':'Open';
-    header.appendChild(name); header.appendChild(badge);
+    header.appendChild(headLeft); header.appendChild(badge);
 
     const meta=document.createElement('div'); meta.className='row-sub';
     const dx=p['Diagnosis']?`• ${p['Diagnosis']}`:''; meta.textContent=`${p['Patient Age']||'—'} yrs • Room ${p['Room']||'—'} ${dx}`;
@@ -154,18 +172,35 @@ function renderPatientsList(){
 
     list.appendChild(row);
   });
+  updateBulkBarState();
+}
+function updateBulkBarState(){
+  // تمكين/تعطيل الأزرار حسب التحديد
+  const has = State.sel.size>0;
+  ['#plist-move','#plist-delete'].forEach(id=>{
+    const b=q(id); if (b) b.disabled = !has;
+  });
+}
+
+// ===== Populate move targets (both main bulk bar + export modal) =====
+function populateMoveTargets(){
+  const sections = State.sections || ['Default'];
+  const s1 = q('#plist-move-target'); if (s1){
+    s1.innerHTML=''; sections.forEach(sec=>{ const o=document.createElement('option'); o.value=sec; o.textContent=sec; s1.appendChild(o); });
+    s1.value = State.activeSection || sections[0];
+  }
+  const s2 = q('#export-move-target'); if (s2){
+    s2.innerHTML=''; sections.forEach(sec=>{ const o=document.createElement('option'); o.value=sec; o.textContent=sec; s2.appendChild(o); });
+    s2.value = State.activeSection || sections[0];
+  }
 }
 
 // ===== Dashboard binding (robust write-through) =====
-
-// الحقول النصية المسموح حفظها في تبويب Patients:
 const PATIENT_FIELDS = new Set([
   'Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Diagnosis','Diet','Isolation','Comments',
   'Section','Done','Updated At','HPI Diagnosis','HPI Previous','HPI Current','HPI Initial','Patient Assessment','Medication List','Latest Notes',
   'Symptoms','Symptoms Notes','Labs Abnormal'
 ]);
-
-// خرائط fallback لـ HPI (IDs الموجودة في index.html)
 const FIELD_FALLBACK_BY_ID = {
   'hpi-diagnosis':      'HPI Diagnosis',
   'hpi-initial':        'HPI Initial',
@@ -175,12 +210,9 @@ const FIELD_FALLBACK_BY_ID = {
   'medication-list':    'Medication List',
   'latest-notes':       'Latest Notes'
 };
-// تحويل عناوين اللابل إلى أسماء الحقول (Bio + HPI)
 function normalizeLabelToField(labelText){
   if (!labelText) return '';
   const t = String(labelText).trim();
-
-  // خرائط شائعة
   if (/^cause of admission$/i.test(t)) return 'HPI Diagnosis';
   if (/^name$/i.test(t) || /^patient name$/i.test(t)) return 'Patient Name';
   if (/^age$/i.test(t)  || /^patient age$/i.test(t)) return 'Patient Age';
@@ -190,47 +222,33 @@ function normalizeLabelToField(labelText){
   if (/^diet$/i.test(t)) return 'Diet';
   if (/^isolation$/i.test(t)) return 'Isolation';
   if (/^comments?$/i.test(t)) return 'Comments';
-
-  // لو كان النص نفسه ضمن SCHEMA نستخدمه كما هو
   if (PATIENT_FIELDS.has(t)) return t;
   return '';
 }
-
-// اجلب قيمة حقل من عنصر (input/textarea/select/ contenteditable)
 function getElementValue(el){
   if (!el) return '';
   if (el.matches('[contenteditable="true"], [contenteditable=""]')) return el.textContent ?? '';
   if ('value' in el) return el.value ?? '';
   return el.textContent ?? '';
 }
-
-// تعيين data-bind-field ديناميكيًا في المودال اعتمادًا على اللابل/الاسم/المعرّف
 function ensureModalFieldBindings(modal){
-  // أي إدخال داخل حقول .field
   qa('input, textarea, select, [contenteditable="true"]', modal).forEach(el=>{
-    if (el.dataset && el.dataset.bindField) return; // موجود مسبقًا
+    if (el.dataset && el.dataset.bindField) return;
     let field = '';
-
-    // 1) محاولة من اللابل
     const wrapper = el.closest('.field') || el.closest('label.field');
     const lab = wrapper ? wrapper.querySelector('.label') : null;
     if (lab) field = normalizeLabelToField(lab.textContent);
-
-    // 2) محاولة من name/id
     if (!field && el.getAttribute) {
       const nm = el.getAttribute('name'); const id = el.id;
       if (nm && PATIENT_FIELDS.has(nm)) field = nm;
       else if (id && FIELD_FALLBACK_BY_ID[id]) field = FIELD_FALLBACK_BY_ID[id];
       else if (id && PATIENT_FIELDS.has(id)) field = id;
     }
-
     if (field) el.dataset.bindField = field;
   });
 }
-
 let dashboardFieldBindingDone = false;
 const debouncedWrites = new WeakMap();
-
 function writeFieldDebounced(code, field, el){
   if (!debouncedWrites.has(el)) {
     debouncedWrites.set(el, Utils.debounce(async ()=>{
@@ -247,43 +265,30 @@ function writeFieldDebounced(code, field, el){
   }
   debouncedWrites.get(el)();
 }
-
 function bindDashboardFieldSyncOnce(){
   if (dashboardFieldBindingDone) return;
   dashboardFieldBindingDone = true;
-
-  // نلتقط الإدخال داخل المودال (input/textarea/select/contenteditable)
   document.addEventListener('input', (e)=>{
     const modal = q('#patient-modal'); if (!modal || modal.classList.contains('hidden')) return;
     const t = e.target; if (!t) return;
-
     ensureModalFieldBindings(modal);
-
     let field = t.dataset && t.dataset.bindField;
     if (!field && t.id && FIELD_FALLBACK_BY_ID[t.id]) field = FIELD_FALLBACK_BY_ID[t.id];
     if (!field) return;
-
     const code = modal.dataset.code || (State.activePatient && State.activePatient['Patient Code']);
     if (!code) return;
-
     writeFieldDebounced(code, field, t);
   }, true);
-
-  // على change/blur نكتب فورًا (safety)
   ['change','blur'].forEach(ev=>{
     document.addEventListener(ev, (e)=>{
       const modal = q('#patient-modal'); if (!modal || modal.classList.contains('hidden')) return;
       const t = e.target; if (!t) return;
-
       ensureModalFieldBindings(modal);
-
       let field = t.dataset && t.dataset.bindField;
       if (!field && t.id && FIELD_FALLBACK_BY_ID[t.id]) field = FIELD_FALLBACK_BY_ID[t.id];
       if (!field) return;
-
       const code = modal.dataset.code || (State.activePatient && State.activePatient['Patient Code']);
       if (!code) return;
-
       const value = getElementValue(t).toString();
       Sheets.writePatientField(code, field, value)
         .then(()=>{
@@ -294,40 +299,27 @@ function bindDashboardFieldSyncOnce(){
     }, true);
   });
 }
-
 function openDashboardFor(code, asModal=false){
   const patient = State.patients.find(p=>p['Patient Code']===code);
   if (!patient) return;
-
-  // عيّن المريض النشط وخزّن الكود على المودال
   Patients.setActiveByCode?.(code);
   const pm = q('#patient-modal'); if (pm) pm.dataset.code = code;
-
   const t=q('#dashboard-title'); if (t) t.textContent=`Dashboard — ${patient['Patient Name']||code}`;
   const mt=q('#patient-modal-title'); if (mt) mt.textContent=patient['Patient Name']||code;
-
   Dashboard.bindPatient(patient, {
     esas: ESAS.getForPatient(code, State.esas),
     ctcae: CTCAE.getForPatient(code, State.ctcae),
     labs: Labs.getForPatient(code, State.labs)
   });
-
-  // Symptoms
   const sData = {
     symptoms: (patient['Symptoms']||'').split(',').map(x=>x.trim()).filter(Boolean),
     notes: safeJSON(patient['Symptoms Notes']||'{}')
   };
   Symptoms.render(code, sData);
-
   const panel=q('#dashboard-panel'); if (panel) panel.dataset.empty='false';
-
-  // لمس updated at
   Sheets.writePatientField(code,'Updated At',new Date().toISOString()).catch(()=>{});
-
-  // تأكيد ربط الحقول + ضمان وجود data-bind-field ديناميكياً
   bindDashboardFieldSyncOnce();
   if (pm) ensureModalFieldBindings(pm);
-
   if (asModal) openPatientModal();
 }
 const safeJSON = s => { try{return JSON.parse(s);}catch{return{};} };
@@ -357,10 +349,8 @@ async function loadAllFromSheets(){
     State.esas     = Array.isArray(data.esas)     ? data.esas     : [];
     State.ctcae    = Array.isArray(data.ctcae)    ? data.ctcae    : [];
     State.labs     = Array.isArray(data.labs)     ? data.labs     : [];
-
     if (!data.sections?.length) await Sheets.ensureSection('Default');
     if (!State.sections.includes(State.activeSection)) State.activeSection = State.sections[0] || 'Default';
-
     renderSections();
     renderPatientsList();
     Dashboard.clearEmpty?.(true);
@@ -382,7 +372,9 @@ function bindUI(){
       qa('.tabs .tab').forEach(x=>x.classList.remove('active'));
       t.classList.add('active');
       State.filter = t.dataset.filter || 'all';
+      State.sel.clear();
       renderPatientsList();
+      updateBulkBarState();
     });
   });
 
@@ -500,13 +492,11 @@ function bindUI(){
     if (!confirm(`Delete ALL ${list.length} patients in section “${sec}”? This cannot be undone.`)) return;
     try{
       const codes=list.map(p=>p['Patient Code']);
-      // محليًا
       State.patients = State.patients.filter(p=>(p.Section||'Default')!==sec);
       State.esas     = State.esas.filter(r=>!codes.includes(r['Patient Code']));
       State.ctcae    = State.ctcae.filter(r=>!codes.includes(r['Patient Code']));
       State.labs     = State.labs.filter(r=>!codes.includes(r['Patient Code']));
       renderPatientsList();
-      // GAS (لو متوفر bulk، وإلا fallbacks)
       const didBulk = await Sheets.deletePatientsInSection?.(sec);
       if (!didBulk) await Sheets.bulkDeletePatients?.(codes);
       toast(`Deleted ${list.length} patients in “${sec}”.`, 'success');
@@ -548,7 +538,7 @@ function bindUI(){
     toast('Settings saved. Reconnected.','success');
   });
 
-  // Delete patient (delegation)
+  // Delete patient (single) inside patient modal
   document.addEventListener('click', async (e)=>{
     const btn=e.target.closest('#btn-delete-patient'); if(!btn) return;
     const modal=q('#patient-modal'); const code=modal?.dataset.code;
@@ -562,6 +552,7 @@ function bindUI(){
       State.esas     = State.esas.filter(x=>x['Patient Code']!==theCode);
       State.ctcae    = State.ctcae.filter(x=>x['Patient Code']!==theCode);
       State.labs     = State.labs.filter(x=>x['Patient Code']!==theCode);
+      State.sel.delete(theCode);
       renderPatientsList(); Dashboard.clearEmpty?.(true); closePatientModal();
       toast('Patient deleted.','success');
     }catch{ toast('Failed to delete patient.','danger'); }
@@ -579,6 +570,50 @@ function bindUI(){
       renderPatientsList();
       toast(newVal?'Marked as Done.':'Marked as Open.','success');
     }catch{ toast('Failed to update Done in Sheets.','danger'); }
+  });
+
+  // ===== Main list bulk actions =====
+  q('#plist-select-all')?.addEventListener('click', ()=>{
+    getFilteredPatients().forEach(p=>State.sel.add(p['Patient Code']));
+    renderPatientsList();
+    updateBulkBarState();
+  });
+  q('#plist-clear')?.addEventListener('click', ()=>{
+    State.sel.clear();
+    renderPatientsList();
+    updateBulkBarState();
+  });
+  q('#plist-move')?.addEventListener('click', async ()=>{
+    const target = q('#plist-move-target')?.value || 'Default';
+    const codes = Array.from(State.sel.values());
+    if (!codes.length) return toast('No patients selected.','warn');
+    if (!target) return;
+    try{
+      for (const code of codes){
+        await Sheets.writePatientField(code, 'Section', target);
+        const i = State.patients.findIndex(p=>p['Patient Code']===code);
+        if (i>=0) State.patients[i].Section = target;
+      }
+      State.sel.clear();
+      renderPatientsList();
+      populateMoveTargets();
+      toast(`Moved ${codes.length} patients to "${target}".`, 'success');
+    }catch(e){ console.error(e); toast('Failed to move selected patients.','danger'); }
+  });
+  q('#plist-delete')?.addEventListener('click', async ()=>{
+    const codes = Array.from(State.sel.values());
+    if (!codes.length) return toast('No patients selected.','warn');
+    if (!confirm(`Delete ${codes.length} selected patients? This cannot be undone.`)) return;
+    try{
+      await Sheets.bulkDeletePatients(codes);
+      State.patients = State.patients.filter(p=>!codes.includes(p['Patient Code']));
+      State.esas     = State.esas.filter(r=>!codes.includes(r['Patient Code']));
+      State.ctcae    = State.ctcae.filter(r=>!codes.includes(r['Patient Code']));
+      State.labs     = State.labs.filter(r=>!codes.includes(r['Patient Code']));
+      State.sel.clear();
+      renderPatientsList();
+      toast('Selected patients deleted.','success');
+    }catch(e){ console.error(e); toast('Failed to delete selected patients.','danger'); }
   });
 
   // Symptoms write-through
@@ -604,85 +639,54 @@ function bindUI(){
 function openExportModal(){
   const modal = q('#export-modal');
   if (!modal) { toast('Export modal not found.', 'danger'); return; }
-
-  // populate sections for move
-  const sel = q('#export-move-target', modal);
-  if (sel){
-    sel.innerHTML = '';
-    (State.sections || ['Default']).forEach(sec=>{
-      const opt=document.createElement('option');
-      opt.value=sec; opt.textContent=sec;
-      sel.appendChild(opt);
-    });
-    // default to current active section
-    sel.value = State.activeSection || (State.sections[0] || 'Default');
-  }
-
-  // Initial render
+  populateMoveTargets();
   renderExportList();
-
-  // Open
   modal.classList.remove('hidden');
   document.documentElement.style.overflow='hidden';
 }
-
 function closeExportModal(){
   const modal = q('#export-modal');
   if (!modal) return;
   modal.classList.add('hidden');
   document.documentElement.style.overflow='';
 }
-
-// Internal selection model (set of patient codes)
+// Internal selection model for export modal
 const ExportSel = new Set();
-
 function getPatientsForExportFiltered(){
   const term = (q('#export-search')?.value || '').toLowerCase().trim();
-  // always use ALL patients (not section filter), but search across all
   const arr = State.patients.slice();
   if (!term) return arr;
   return arr.filter(p => JSON.stringify(p).toLowerCase().includes(term));
 }
-
 function renderExportList(){
   const root = q('#export-list'); if (!root) return;
   root.innerHTML = '';
-
   const pats = getPatientsForExportFiltered();
-
-  // group by section
   const bySec = new Map();
   pats.forEach(p=>{
     const sec = p.Section || 'Default';
     if (!bySec.has(sec)) bySec.set(sec, []);
     bySec.get(sec).push(p);
   });
-
-  // build sections
   const secs = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
   secs.forEach(sec=>{
     const list = bySec.get(sec) || [];
-    // sort by Room asc (numeric if possible)
     list.sort((a,b)=>{
       const ka = toRoomKey(a.Room);
       const kb = toRoomKey(b.Room);
       if (ka.num !== kb.num) return ka.num - kb.num;
       return ka.raw.localeCompare(kb.raw);
     });
-
     const card = document.createElement('div');
     card.className = 'card';
     const head = document.createElement('div');
     head.className = 'card-head';
     head.innerHTML = '<div class="card-title">Section: '+sec+'</div>';
     card.appendChild(head);
-
-    // table
     const table = document.createElement('table');
     table.className = 'mono small';
     table.style.width='100%';
     table.style.borderCollapse='collapse';
-
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
     ['Select','Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Cause Of Admission','Diet','Isolation','Note'].forEach(h=>{
@@ -696,9 +700,7 @@ function renderExportList(){
     });
     thead.appendChild(trh);
     table.appendChild(thead);
-
     const tbody = document.createElement('tbody');
-
     list.forEach(p=>{
       const tr = document.createElement('tr');
       const cells = [
@@ -713,7 +715,6 @@ function renderExportList(){
         p['Isolation']||'',
         p['Comments']||''
       ];
-
       cells.forEach((val, idx)=>{
         const td = document.createElement('td');
         td.style.border = '1px solid var(--border)';
@@ -735,12 +736,10 @@ function renderExportList(){
       });
       tbody.appendChild(tr);
     });
-
     table.appendChild(tbody);
     card.appendChild(table);
     root.appendChild(card);
   });
-
   if (!secs.length){
     const d = document.createElement('div');
     d.className='muted small';
@@ -748,7 +747,6 @@ function renderExportList(){
     root.appendChild(d);
   }
 }
-
 async function moveSelectedPatients(targetSection){
   const codes = Array.from(ExportSel.values());
   if (!codes.length) { toast('No patients selected.', 'warn'); return; }
@@ -765,14 +763,12 @@ async function moveSelectedPatients(targetSection){
     console.error(e); toast('Failed to move some patients.','danger');
   }
 }
-
 async function deleteSelectedPatients(){
   const codes = Array.from(ExportSel.values());
   if (!codes.length) { toast('No patients selected.', 'warn'); return; }
   if (!confirm('Delete selected patients? This cannot be undone.')) return;
   try{
     await Sheets.bulkDeletePatients(codes);
-    // purge local
     State.patients = State.patients.filter(p=>!codes.includes(p['Patient Code']));
     State.esas     = State.esas.filter(r=>!codes.includes(r['Patient Code']));
     State.ctcae    = State.ctcae.filter(r=>!codes.includes(r['Patient Code']));
@@ -786,8 +782,9 @@ async function deleteSelectedPatients(){
   }
 }
 
-function buildPrintPagesHTML(selectedCodes){
-  // Use selected if any; otherwise include all filtered by search within modal
+// ===== Print builder with scaling options =====
+function buildPrintPagesHTML(selectedCodes, options){
+  const { scalePercent=100, fontPx=12, fitOne=false } = options||{};
   const usingSelected = selectedCodes && selectedCodes.length>0;
   const pats = usingSelected
     ? State.patients.filter(p=>selectedCodes.includes(p['Patient Code']))
@@ -801,8 +798,11 @@ function buildPrintPagesHTML(selectedCodes){
     bySec.get(sec).push(p);
   });
 
-  // For each section, sort by room and render a table page
   const sections = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
+  const A4_CONTENT_HEIGHT_PX = 1030; // تقريب لارتفاع المساحة القابلة للطباعة
+  const HEAD_EST = 60;                // تقدير رأس الصفحة
+  const ROW_EST_FACTOR = 2.2;         // ارتفاع صف ≈ fontPx * 2.2
+
   const pages = sections.map(sec=>{
     const list = bySec.get(sec);
     list.sort((a,b)=>{
@@ -811,6 +811,14 @@ function buildPrintPagesHTML(selectedCodes){
       if (ka.num !== kb.num) return ka.num - kb.num;
       return ka.raw.localeCompare(kb.raw);
     });
+
+    // تقدير scale إضافي لو وضع fit-one
+    let effectiveScale = scalePercent / 100;
+    if (fitOne){
+      const estHeight = HEAD_EST + (list.length * fontPx * ROW_EST_FACTOR);
+      const needed = A4_CONTENT_HEIGHT_PX / estHeight;
+      if (needed < effectiveScale) effectiveScale = Math.max(0.5, needed); // لا ننزل أقل من 50%
+    }
 
     const rows = list.map(p=>{
       const fields = [
@@ -827,53 +835,52 @@ function buildPrintPagesHTML(selectedCodes){
       return '<tr>'+fields.map(v=>`<td>${String(v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</td>`).join('')+'</tr>';
     }).join('');
 
+    // نغلّف المحتوى داخل div عليه transform: scale(...)
     const table = `
       <div class="print-page">
-        <div class="print-head">
-          <div class="print-title">Patient List — Section: ${sec}</div>
-          <div class="print-sub">Generated: ${Utils.formatDateTime(new Date().toISOString())}</div>
+        <div class="print-scale" style="transform:scale(${effectiveScale}); transform-origin: top left; width:${(100/ effectiveScale).toFixed(2)}%; ">
+          <div class="print-head" style="margin-bottom:8px">
+            <div class="print-title">Patient List — Section: ${sec}</div>
+            <div class="print-sub">Generated: ${Utils.formatDateTime(new Date().toISOString())}</div>
+          </div>
+          <table class="print-table" style="font-size:${fontPx}px">
+            <thead>
+              <tr>
+                <th>Patient Code</th><th>Patient Name</th><th>Patient Age</th><th>Room</th>
+                <th>Admitting Provider</th><th>Cause Of Admission</th><th>Diet</th><th>Isolation</th><th>Note</th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="9">No patients</td></tr>'}</tbody>
+          </table>
         </div>
-        <table class="print-table">
-          <thead>
-            <tr>
-              <th>Patient Code</th><th>Patient Name</th><th>Patient Age</th><th>Room</th>
-              <th>Admitting Provider</th><th>Cause Of Admission</th><th>Diet</th><th>Isolation</th><th>Note</th>
-            </tr>
-          </thead>
-          <tbody>${rows || '<tr><td colspan="9">No patients</td></tr>'}</tbody>
-        </table>
       </div>`;
     return table;
   });
 
   return pages.join('\n');
 }
-
 function renderPrintRootAndPrint(){
   const root = q('#print-root'); if (!root) { toast('Print root missing.','danger'); return; }
   const selected = Array.from(ExportSel.values());
-  root.innerHTML = buildPrintPagesHTML(selected);
-  // show print area via class; styles.css will handle print view
+  const scale = Math.max(50, Math.min(100, parseInt(q('#export-scale')?.value || '100', 10) || 100));
+  const fontPx = parseInt(q('#export-font')?.value || '12', 10) || 12;
+  const fitOne = !!q('#export-fit-one')?.checked;
+  root.innerHTML = buildPrintPagesHTML(selected, { scalePercent: scale, fontPx, fitOne });
   root.style.display = '';
   document.body.setAttribute('data-printing','true');
   window.print();
-  // after print, hide again
   setTimeout(()=>{
     document.body.removeAttribute('data-printing');
     root.style.display='none';
   }, 500);
 }
 
-// Wire modal buttons
+// Wire modal buttons for export
 document.addEventListener('click', async (e)=>{
-  // open modal button
   if (e.target.closest('#btn-export-patient-list')) { e.preventDefault(); openExportModal(); }
-
   const inModal = e.target.closest('#export-modal'); 
   if (!inModal) return;
-
   if (e.target.closest('#btn-export-select-all')){
-    // select all currently visible rows in modal
     getPatientsForExportFiltered().forEach(p=> ExportSel.add(p['Patient Code']));
     renderExportList();
   }
@@ -892,8 +899,6 @@ document.addEventListener('click', async (e)=>{
     renderPrintRootAndPrint();
   }
 });
-
-// Search typing in modal
 document.addEventListener('input', (e)=>{
   if (e.target && e.target.id === 'export-search'){
     renderExportList();
@@ -912,7 +917,6 @@ export const App = {
     Importer.init?.(Bus, State);
     AIModule.init?.(Bus, State);
     Symptoms.init?.(Bus, State);
-
     await loadAllFromSheets();
     State.ready=true;
   },
