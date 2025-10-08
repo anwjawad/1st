@@ -62,14 +62,13 @@
       </div>
 
       <!-- Calculators -->
-<div class="section">
-  <div class="section-title">CALCULATORS</div>
-  <button id="open-ecog" class="btn w100">ECOG</button>
-  <button id="open-opioid" class="btn w100">Opioid Converter</button>
-  <button id="open-ppi" class="btn w100">Palliative Prognostic Index (PPI)</button>
-  <button id="open-pps" class="btn w100">Palliative Performance Scale (PPS)</button>
-</div>
-
+      <div class="section">
+        <div class="section-title">CALCULATORS</div>
+        <button id="open-ecog" class="btn w100">ECOG</button>
+        <button id="open-opioid" class="btn w100">Opioid Converter</button>
+        <button id="open-ppi" class="btn w100">Palliative Prognostic Index (PPI)</button>
+        <button id="open-pps" class="btn w100">Palliative Performance Scale (PPS)</button>
+      </div>
 
       <div class="section small">
         <div class="section-title">SYNC</div>
@@ -84,10 +83,16 @@
       </div>
     </aside>
 
+    <!-- Scrim (لإغلاق القائمة على الموبايل) -->
+    <div id="sidebar-scrim" class="scrim" hidden></div>
+
     <!-- Main -->
     <main id="main">
       <!-- Topbar -->
       <div id="topbar">
+        <!-- NEW: زر فتح/إغلاق القائمة على الشاشات الصغيرة -->
+        <button id="btn-toggle-sidebar" class="icon-btn mobile-only" aria-label="Toggle menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+
         <input id="search" type="search" placeholder="Search patients…" />
         <div id="section-ops">
           <span id="active-section-label">Section: <strong id="active-section-name">Default</strong></span>
@@ -231,7 +236,7 @@
           <input id="set-ai-endpoint" type="url" placeholder="https://your-proxy.example/summarize" />
         </label>
 
-        <!-- NEW: Animation speed control -->
+        <!-- Animation speed control -->
         <label class="field">
           <span class="label">Animation speed</span>
           <select id="set-motion-speed">
@@ -359,11 +364,10 @@
   <!-- Floating Add Patient button (FAB) -->
   <div class="fab" id="fab-add" aria-label="Add patient" title="Add patient">+</div>
 
-<script type="module" src="./js/themes.js"></script>
+  <script type="module" src="./js/themes.js"></script>
   <script type="module" src="./js/pdf-import.js"></script>
-    <script type="module" src="./js/summaries.js"></script>
+  <script type="module" src="./js/summaries.js"></script>
   <script type="module" src="js/calculators.js"></script>
-
 
   <!-- Entry point: App.start -->
   <script type="module">
