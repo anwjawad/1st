@@ -464,7 +464,53 @@ async function loadAllFromSheets(){
     State.loading=false;
   }
 }
+// ===== Mobile UI (sidebar toggle + scrim + FAB) =====
+function setupMobileUI(){
+  const topbar = q('#topbar');
 
+  // زر الهامبرغر (يُحقن تلقائياً ولا يحتاج تعديل في index.html)
+  if (topbar && !q('#btn-toggle-sidebar', topbar)) {
+    const btn = document.createElement('button');
+    btn.id = 'btn-toggle-sidebar';
+    btn.className = 'icon-btn mobile-only';
+    btn.setAttribute('aria-label','Menu');
+    btn.innerHTML = '☰';
+    topbar.insertBefore(btn, topbar.firstChild);
+  }
+
+  // Scrim للخلفية عند فتح السايدبار
+  if (!q('#sidebar-scrim')) {
+    const s = document.createElement('div');
+    s.id = 'sidebar-scrim';
+    s.className = 'scrim';
+    document.body.appendChild(s);
+  }
+
+  const open  = ()=> document.body.classList.add('sidebar-open');
+  const close = ()=> document.body.classList.remove('sidebar-open');
+  const toggle= ()=> document.body.classList.toggle('sidebar-open');
+
+  q('#btn-toggle-sidebar')?.addEventListener('click', toggle);
+  q('#sidebar-scrim')?.addEventListener('click', close);
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') close(); });
+
+  // إغلاق السايدبار بعد اختيار قسم
+  document.addEventListener('click', e=>{
+    if (!document.body.classList.contains('sidebar-open')) return;
+    if (e.target.closest('#sections-list .pill')) close();
+  });
+
+  // عند الرجوع لديسكتوب (>980px) أغلق السايدبار
+  const mq = window.matchMedia('(min-width: 981px)');
+  const onChange = ()=>{ if (mq.matches) close(); };
+  mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange);
+  onChange();
+
+  // FAB = نفس زر + New Patient
+  q('#fab-add')?.addEventListener('click', ()=>{
+    q('#btn-new-patient')?.click();
+  });
+}
 // ===== Bind UI =====
 function bindUI(){
   UI.init?.(Bus);
@@ -682,6 +728,7 @@ function bindUI(){
     localStorage.setItem('pr.bridge', State.config.bridgeUrl);
     localStorage.setItem('pr.ai',     State.config.aiEndpoint);
     q('#settings-modal')?.classList.add('hidden');
+    setupMobileUI();
     await loadAllFromSheets();
     toast('Settings saved. Reconnected.','success');
   });
