@@ -688,7 +688,7 @@ body[data-printing="true"] #print-root { display:block !important; }
 }
 #summaries-print-root .report-cover .stamp {
   margin-top: 14px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   opacity: .8;
 }
@@ -1051,4 +1051,61 @@ body[data-printing="true"] #print-root { display:block !important; }
 /* تقليل الحركة */
 @media (prefers-reduced-motion: reduce){
   *{ animation:none !important; transition:none !important; }
+}
+
+/* ============ PREFERENCES: CARD DENSITY ============ */
+/* هذه القواعد تفعلها ThemeManager بوضع data-density على <body> */
+/* Compact = مضغوط / Expanded = موسّع (القيم الافتراضية قريبة من expanded) */
+
+/* --- Compact --- */
+body[data-density="compact"] #patients-col .list{
+  gap:10px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+body[data-density="compact"] #patients-col .row{
+  padding:8px;
+  gap:8px;
+  border-radius:12px;
+}
+
+body[data-density="compact"] .row-title{ font-size:14px; }
+body[data-density="compact"] .row-sub{ font-size:11px; }
+body[data-density="compact"] .row-tag{ padding:3px 8px; font-size:11px; }
+body[data-density="compact"] .row-chip{ padding:2px 6px; font-size:11px; }
+
+body[data-density="compact"] .mini-actions{ margin-top:4px; gap:4px; }
+body[data-density="compact"] .btn-chip{ padding:1px 6px; font-size:11px; line-height:16px; }
+
+/* بطاقات عامة */
+body[data-density="compact"] .card{
+  padding:10px;
+  border-radius:14px;
+}
+
+/* الشريط الجانبي أضيق قليلاً */
+body[data-density="compact"] #sidebar{
+  width:280px; min-width:260px; padding:16px 14px;
+}
+
+/* --- Expanded (تعزيزات خفيفة فوق القيم الافتراضية) --- */
+body[data-density="expanded"] #patients-col .list{
+  gap:16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+body[data-density="expanded"] #patients-col .row{
+  padding:14px;
+  gap:12px;
+  border-radius:18px;
+}
+
+body[data-density="expanded"] .row-title{ font-size:16px; }
+body[data-density="expanded"] .row-sub{ font-size:12px; }
+body[data-density="expanded"] .row-chip{ padding:4px 10px; font-size:12px; }
+body[data-density="expanded"] .card{ padding:16px; }
+
+/* تناغم الحركات مع الكثافة: وقت أقصر في المضغوط */
+body[data-density="compact"] *{
+  transition-duration: calc(0.85 * var(--t-med));
 }
