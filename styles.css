@@ -710,3 +710,35 @@ body[data-printing="true"] #print-root { display:block !important; }
   cursor:pointer;
 }
 .btn-chip:hover { background: var(--bg-3); }
+/* === Section patient counts === */
+.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.pill-count {
+  font-size: 11px;
+  color: var(--muted);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  border-radius: 10px;
+  padding: 1px 6px;
+  line-height: 1.3;
+  transition: all 0.3s ease;
+}
+
+.pill.active .pill-count {
+  background: color-mix(in oklab, var(--primary) 30%, transparent);
+  color: white;
+}
+
+.pulse {
+  animation: pulseFade 2.5s ease-in-out infinite;
+}
+
+@keyframes pulseFade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
