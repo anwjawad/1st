@@ -361,7 +361,7 @@ async function loadAllFromSheets(){
     State.loading=false;
   }
 }
-import { Summaries } from 'js/summaries.js'; // فوق بداية الملف app.js لو مش موجود
+import { Summaries } from './summaries.js'; // فوق بداية الملف app.js لو مش موجود
 // ===== Bind UI =====
 function bindUI(){
   UI.init?.(Bus);
