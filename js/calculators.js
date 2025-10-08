@@ -21,7 +21,7 @@ function ensureModal({ id, title, bodyHTML, footerHTML='' }) {
   el.id = id;
   el.className = 'modal hidden';
   el.innerHTML = `
-    <div class="modal-card" role="dialog" aria-modal="true" style="max-width: 760px;">
+    <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
       <div class="modal-header">
         <div class="card-title">${title}</div>
         <button class="icon-btn" data-close-modal="${id}" aria-label="Close">✕</button>
@@ -76,7 +76,7 @@ function mountECOG(){
         </div>
         <div class="calc-row">
           <button id="ecog-copy" class="btn btn-ghost">Copy</button>
-          <button id="ecog-link" class="btn btn-primary">Link to Current HPI</button>
+          <button id="ecog-link" class="btn btn-primary">Link to Latest Notes</button>
         </div>
       </div>
       <div class="calc-card">
@@ -114,7 +114,7 @@ function mountPPS(){
         </div>
         <div class="calc-row">
           <button id="pps-copy" class="btn btn-ghost">Copy</button>
-          <button id="pps-link" class="btn btn-primary">Link to Current HPI</button>
+          <button id="pps-link" class="btn btn-primary">Link to Latest Notes</button>
         </div>
       </div>
       <div class="calc-card">
@@ -187,7 +187,7 @@ function mountPPI(){
         </label>
         <div class="calc-row">
           <button id="ppi-copy" class="btn btn-ghost">Copy</button>
-          <button id="ppi-link" class="btn btn-primary">Link to Current HPI</button>
+          <button id="ppi-link" class="btn btn-primary">Link to Latest Notes</button>
         </div>
       </div>
 
