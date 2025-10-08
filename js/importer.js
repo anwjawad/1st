@@ -161,6 +161,80 @@ function mapLegacyRowToExpected(row9) {
 
 // === Custom template registry (supports merged Excel exports with Unnamed columns) ===
 const CUSTOM_TEMPLATES = [
+
+  {
+    name: 'MAIN_TEMPLATE_EMPTY_COLS',
+    recognize: (gotHeaderRaw) => {
+      const got = (gotHeaderRaw || []).map(h => (h ?? '').toString().trim());
+      // Remove empty / unnamed headers
+      const base = got.filter(h => h && !/^unnamed[:\s]*/i.test(h));
+      const low = base.map(h => h.toLowerCase());
+      const need = [
+        'patient code',
+        'patient name',
+        'patient age',
+        'room',
+        'admitting provider',
+        'cause of admission',
+        'diet',
+        'isolation',
+        'comments'
+      ];
+      return need.every(n => low.includes(n));
+    },
+    mapRow: (row, headerRaw) => {
+      const H = (headerRaw || []).map(h => (h ?? '').toString().trim());
+      const Hl = H.map(h => h.toLowerCase());
+
+      function idxFor(keyLow){
+        // find the first matching non-empty header cell (ignore unnamed/empty columns)
+        for (let i=0;i<Hl.length;i++){
+          if (!Hl[i]) continue;
+          if (/^unnamed[:\s]*/.test(Hl[i])) continue;
+          if (Hl[i] === keyLow) return i;
+        }
+        return -1;
+      }
+      const iCode = idxFor('patient code');
+      const iName = idxFor('patient name');
+      const iAge  = idxFor('patient age');
+      const iRoom = idxFor('room');
+      const iProv = idxFor('admitting provider');
+      const iDiag = idxFor('cause of admission');
+      const iDiet = idxFor('diet');
+      const iIso  = idxFor('isolation');
+      const iComm = idxFor('comments');
+
+      const v = (i) => (i>=0 ? (row[i] ?? '') : '');
+
+      const vCode = v(iCode);
+      const vName = v(iName);
+      const vAge  = extractAgeNumber(v(iAge));
+      const vRoom = v(iRoom);
+      const vProv = v(iProv);
+      const vDiag = v(iDiag); // -> Diagnosis
+      const vDiet = v(iDiet);
+      const vIso  = v(iIso);
+      const vComm = v(iComm);
+
+      return [
+        vCode,  // Patient Code
+        vName,  // Patient Name
+        vAge,   // Patient Age (numeric only)
+        vRoom,  // Room
+        vDiag,  // Diagnosis
+        '',     // Section -> filled later
+        vProv,  // Admitting Provider
+        vDiet,  // Diet
+        vIso,   // Isolation
+        vComm,  // Comments
+        '',     // Symptoms
+        '',     // Symptoms Notes
+        ''      // Labs Abnormal
+      ];
+    }
+  },
+
   {
     name: 'EXCEL_MERGED_WITH_UNNAMED',
     recognize: (gotHeaderRaw) => {
