@@ -91,21 +91,38 @@ const State = {
 
 // ===== UI: Sections & Patients list =====
 function renderSections(){
-  const root=q('#sections-list'); if(!root) return; root.innerHTML='';
-  State.sections.forEach(name=>{
-    const btn=document.createElement('button');
-    btn.className='pill ' + (name===State.activeSection?'active':'');
-    btn.textContent=name;
-    btn.addEventListener('click',()=>{
-      State.activeSection=name;
-      const label=q('#active-section-name'); if (label) label.textContent = name;
+  const root = q('#sections-list');
+  if(!root) return;
+  root.innerHTML = '';
+
+  // احسب عدد المرضى بكل قسم
+  const counts = {};
+  State.patients.forEach(p => {
+    const sec = p.Section || 'Default';
+    counts[sec] = (counts[sec] || 0) + 1;
+  });
+
+  State.sections.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'pill ' + (name === State.activeSection ? 'active' : '');
+    btn.innerHTML = `
+      <span>${name}</span>
+      <span class="pill-count ${counts[name] ? 'pulse' : ''}">${counts[name] || 0}</span>
+    `;
+    btn.addEventListener('click', () => {
+      State.activeSection = name;
+      const label = q('#active-section-name');
+      if (label) label.textContent = name;
       State.sel.clear();
-      renderPatientsList(); Dashboard.clearEmpty?.(true);
+      renderPatientsList();
+      Dashboard.clearEmpty?.(true);
       populateMoveTargets();
     });
     root.appendChild(btn);
   });
-  const label=q('#active-section-name'); if (label) label.textContent = State.activeSection || 'Default';
+
+  const label = q('#active-section-name');
+  if (label) label.textContent = State.activeSection || 'Default';
   populateMoveTargets();
 }
 function symptomsPreview(p){
