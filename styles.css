@@ -685,27 +685,3 @@ body[data-printing="true"] #print-root { display:block !important; }
   font-size: 12px;
   opacity: .8;
 }
-/* عزل صريح: ستايلات summaries ما تأثر إلا على مودال summaries */
-#summaries-modal .modal-card { max-width: 1000px; width: calc(100% - 24px); }
-#summaries-modal .modal-body { max-height: 75vh; overflow-y: auto; }
-
-/* تأكيد عام للمودالات الأخرى (خاصة patient-modal) */
-#patient-modal .modal-card {
-  max-width: min(1160px, 96vw);
-  width: calc(100% - 24px);
-}
-
-/* ضمان شبكة عمودين في الداشبورد داخل المودال (وتتفكك تلقائيًا إن ضاق العرض) */
-#patient-modal .grid.grid-2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(280px, 1fr));
-  gap: 12px;
-}
-
-/* لو كان في قاعدة عامة خربت الشبكات، رجّعناها للمودال */
-#patient-modal .grid { display: grid; gap: 10px; }
-
-/* حماية من أي overflow في الحاويات داخل المودال */
-#patient-modal .modal-card, 
-#patient-modal .modal-body { overflow: visible; }
-
