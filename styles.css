@@ -572,4 +572,117 @@ body[data-printing="true"] #print-root { display:block !important; }
     border: none !important;
   }
 }
+/* ============ MEDICAL REPORT PRINT TUNING ============ */
+
+/* شاشة: لمسات خفيفة على زر التقرير */
+#summaries-medical-report {
+  box-shadow: 0 6px 20px color-mix(in oklab, var(--primary) 24%, transparent);
+}
+
+/* الطباعة: نعرض فقط جذر الطباعة */
+@media print {
+  /* أخفِ كل شيء عدا مساحة الطباعة */
+  body[data-printing="true"] * {
+    visibility: hidden !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  #summaries-print-root,
+  #summaries-print-root * {
+    visibility: visible !important;
+  }
+
+  /* صفحة A4 وهوامش مناسبة للتوقيع */
+  @page {
+    size: A4;
+    margin: 12mm 12mm 14mm 12mm;
+  }
+
+  #summaries-print-root {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+  }
+
+  /* كل صفحة تقرير */
+  #summaries-print-root .print-page {
+    page-break-after: always;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    padding: 2mm 0 0 0;
+  }
+
+  /* ترويسة الصفحة */
+  #summaries-print-root .print-head .print-title {
+    font-weight: 800;
+    font-size: 16px;
+    margin: 0 0 2mm 0;
+  }
+  #summaries-print-root .print-head .print-sub {
+    font-size: 11.5px;
+    opacity: .85;
+    margin: 0 0 4mm 0;
+  }
+
+  /* كتل المريض: منع التقطيع داخل الصفحة */
+  #summaries-print-root .patient-block,
+  #summaries-print-root .report-block,
+  #summaries-print-root .print-block,
+  #summaries-print-root div[style*="break-inside:avoid"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 4mm;
+  }
+
+  /* صناديق المحتوى: إزالة الخلفيات الداكنة في الطباعة */
+  #summaries-print-root pre,
+  #summaries-print-root .box,
+  #summaries-print-root .card {
+    background: transparent !important;
+    border-color: #999 !important;
+  }
+
+  /* نص الملخص */
+  #summaries-print-root pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 12.5px;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    border: 1px solid #999;
+    border-radius: 6px;
+    padding: 6px;
+  }
+
+  /* توقيعات */
+  #summaries-print-root .sig-line {
+    border-top: 1px solid #bbb;
+    padding-top: 3mm;
+    font-size: 12px;
+  }
+}
+
+/* شاشة + طباعة: كلاس مساعد يمكن استعماله لاحقًا في القوالب المطبوعة */
+#summaries-print-root .report-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  text-align: center;
+}
+#summaries-print-root .report-cover .title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: .3px;
+  margin-bottom: 6px;
+}
+#summaries-print-root .report-cover .subtitle {
+  font-size: 15px;
+  opacity: .85;
+}
+#summaries-print-root .report-cover .stamp {
+  margin-top: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  opacity: .8;
+}
 
