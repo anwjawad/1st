@@ -644,17 +644,21 @@ q('#open-summaries')?.addEventListener('click', () => {
   });
   
 // Append calculator text to patient's HPI Current
+// Append calculator text to patient's Latest Notes (always append; never replace)
 Bus.on('calc.appendToHPI', async ({ code, text }) => {
   try{
     const idx = State.patients.findIndex(p => p['Patient Code'] === code);
     if (idx < 0) return toast('No active patient.', 'warn');
-    const current = State.patients[idx]['HPI Current'] || '';
+
+    const current = State.patients[idx]['Latest Notes'] || '';
     const sep = current && !/\n$/.test(current) ? '\n' : '';
     const newVal = current + sep + text;
-    await Sheets.writePatientField(code, 'HPI Current', newVal);
-    State.patients[idx]['HPI Current'] = newVal;
-    toast('Added to Current HPI.', 'success');
-  }catch(e){ console.error(e); toast('Failed to add to HPI.', 'danger'); }
+
+    await Sheets.writePatientField(code, 'Latest Notes', newVal);
+    State.patients[idx]['Latest Notes'] = newVal;
+
+    toast('Added to Latest Notes.', 'success');
+  }catch(e){ console.error(e); toast('Failed to add to Latest Notes.', 'danger'); }
 });
 
   // Labs write-through
