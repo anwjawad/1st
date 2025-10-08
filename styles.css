@@ -967,3 +967,105 @@ body[data-printing="true"] #print-root { display:block !important; }
 @media (prefers-reduced-motion: reduce){
   *{ animation:none !important; transition:none !important; }
 }
+/* =========================
+   STRONG MOTION (x3 intensity)
+   ========================= */
+
+@media (prefers-reduced-motion: no-preference){
+
+  /* === Modal: انزلاق أوضح وتلاشي أقوى === */
+  .modal{
+    animation: modalBackdropIn 500ms ease-out both;
+  }
+  @keyframes modalBackdropIn{
+    from{ background: rgba(6,8,16,0.00); }
+    to  { background: rgba(6,8,16,0.75); } /* أوضح */
+  }
+  .modal-card{
+    transform: translateY(80px) scale(0.95);
+    opacity: 0;
+  }
+  .modal:not(.hidden) .modal-card{
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    transition:
+      transform 0.75s cubic-bezier(.18,.89,.32,1.28),
+      opacity   0.55s ease-out;
+    will-change: transform, opacity;
+  }
+
+  /* === بطاقات المرضى: دخول أقوى (fade + slide أطول + stagger) === */
+  #patients-list .row{
+    animation: listInStrong 0.7s cubic-bezier(.22,.61,.36,1) both;
+    transform-origin: 50% 0%;
+  }
+  @keyframes listInStrong{
+    0%   { opacity: 0; transform: translateY(30px) scale(0.95); }
+    40%  { opacity: 1; transform: translateY(-6px) scale(1.01); }
+    100% { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+  /* Stagger أطول (حتى 20 عنصر) */
+  #patients-list .row:nth-child(1){animation-delay:0ms;}
+  #patients-list .row:nth-child(2){animation-delay:70ms;}
+  #patients-list .row:nth-child(3){animation-delay:140ms;}
+  #patients-list .row:nth-child(4){animation-delay:210ms;}
+  #patients-list .row:nth-child(5){animation-delay:280ms;}
+  #patients-list .row:nth-child(6){animation-delay:350ms;}
+  #patients-list .row:nth-child(7){animation-delay:420ms;}
+  #patients-list .row:nth-child(8){animation-delay:490ms;}
+  #patients-list .row:nth-child(9){animation-delay:560ms;}
+  #patients-list .row:nth-child(10){animation-delay:630ms;}
+  #patients-list .row:nth-child(11){animation-delay:700ms;}
+  #patients-list .row:nth-child(12){animation-delay:770ms;}
+  #patients-list .row:nth-child(13){animation-delay:840ms;}
+  #patients-list .row:nth-child(14){animation-delay:910ms;}
+  #patients-list .row:nth-child(15){animation-delay:980ms;}
+  #patients-list .row:nth-child(16){animation-delay:1050ms;}
+  #patients-list .row:nth-child(17){animation-delay:1120ms;}
+  #patients-list .row:nth-child(18){animation-delay:1190ms;}
+  #patients-list .row:nth-child(19){animation-delay:1260ms;}
+  #patients-list .row:nth-child(20){animation-delay:1330ms;}
+
+  /* === Hover Elevation: أعلى ×3 + ظل أعمق + Tint أقوى === */
+  #patients-col .row,
+  .card{
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease,
+      border-color 0.25s ease,
+      background-color 0.25s ease;
+  }
+  #patients-col .row:hover,
+  .card:hover{
+    transform: translateY(-10px) scale(1.02);
+    box-shadow:
+      0 26px 80px rgba(0,0,0,.45),
+      0 0 0 1px color-mix(in oklab, var(--primary) 55%, transparent) inset;
+    border-color: color-mix(in oklab, var(--primary) 60%, var(--border));
+    background-color: color-mix(in oklab, var(--panel) 75%, var(--primary) 25%);
+  }
+
+  /* === Pills (الأقسام): حركة أوضح عند hover === */
+  #sections-list .pill{
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease,
+      background-color 0.25s ease,
+      border-color 0.25s ease,
+      color 0.25s ease;
+  }
+  #sections-list .pill:hover{
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 16px 38px rgba(0,0,0,.35);
+    border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+    background-color: color-mix(in oklab, rgba(255,255,255,.04) 50%, var(--primary) 50%);
+  }
+  #sections-list .pill:active{
+    transform: translateY(0) scale(0.96);
+  }
+}
+
+/* تقليل الحركة */
+@media (prefers-reduced-motion: reduce){
+  *{ animation:none !important; transition:none !important; }
+}
