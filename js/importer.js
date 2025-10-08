@@ -1,6 +1,6 @@
 // js/importer.js
 // Robust CSV/TSV Importer
-// - Accepts NEW template (13 cols) or LEGACY template (9 cols)
+// - Accepts NEW template (13 cols), LEGACY template (9 cols), or CUSTOM merged Excel export
 // - Legacy maps “Cause Of Admission” -> Diagnosis
 // - Case/whitespace tolerant; handles BOM; delimiter auto-detect (, ; \t)
 // - Always returns rows aligned to EXPECTED_HEADERS so app.js can build objects reliably
@@ -46,7 +46,7 @@ const els = {
 };
 
 let validatedRows = [];
-let lastMode = 'new'; // 'new' | 'legacy'
+let lastMode = 'new'; // 'new' | 'legacy' | custom-name
 
 // ===== Helpers =====
 function stripBOM(s){ return (s && s.charCodeAt(0) === 0xFEFF) ? s.slice(1) : s; }
@@ -57,12 +57,13 @@ function detectDelimiter(text) {
   const first = (text.split(/\r?\n/, 1)[0] || '');
   const counts = {
     ',': (first.match(/,/g)||[]).length,
-    '\t': (first.match(/\t/g)||[]).length,
+    '\\t': (first.match(/\\t/g)||[]).length,
     ';': (first.match(/;/g)||[]).length
   };
   let best = ',', max = -1;
-  for (const d in counts){ if (counts[d] > max){ max = counts[d]; best = d; } }
-  return best;
+  const keys = [',','\\t',';'];
+  keys.forEach(d=>{ if (counts[d] > max){ max = counts[d]; best = d; } });
+  return best === '\\t' ? '\\t' : best;
 }
 
 // Basic DSV parser with quotes
@@ -72,24 +73,33 @@ function parseDSV(text, delim) {
   const pushField=()=>{ row.push(f); f=''; };
   const pushRow=()=>{ rows.push(row); row=[]; };
 
+  const D = delim === '\\t' ? '\\t' : delim;
+
   while (i<text.length){
     const ch = text[i];
     if (inQ){
-      if (ch === '"'){
-        if (text[i+1] === '"'){ f+='"'; i+=2; continue; }
+      if (ch === '\"'){
+        if (text[i+1] === '\"'){ f+='\"'; i+=2; continue; }
         inQ=false; i++; continue;
       } else { f+=ch; i++; continue; }
     } else {
-      if (ch === '"'){ inQ=true; i++; continue; }
-      if (ch === delim){ pushField(); i++; continue; }
-      if (ch === '\n'){ pushField(); pushRow(); i++; continue; }
-      if (ch === '\r'){ i++; continue; }
+      if (ch === '\"'){ inQ=true; i++; continue; }
+      if (ch === D){ pushField(); i++; continue; }
+      if (ch === '\\n'){ pushField(); pushRow(); i++; continue; }
+      if (ch === '\\r'){ i++; continue; }
       f += ch; i++;
     }
   }
   pushField();
   if (row.length>1 || (row.length===1 && row[0] !== '')) pushRow();
   return rows;
+}
+
+// Extract first integer from an age string -> '72 Years 4 Months' -> '72'
+function extractAgeNumber(val){
+  const s = (val == null ? '' : String(val)).trim();
+  const m = s.match(/\\b(\\d{1,3})\\b/);
+  return m ? m[1] : (s && /^\\d+$/.test(s) ? s : '');
 }
 
 // Validate/recognize header
@@ -135,7 +145,7 @@ function mapLegacyRowToExpected(row9) {
   const out = new Array(EXPECTED_HEADERS.length).fill('');
   out[0]  = r[0] || ''; // Patient Code
   out[1]  = r[1] || ''; // Patient Name
-  out[2]  = r[2] || ''; // Patient Age
+  out[2]  = extractAgeNumber(r[2]); // Patient Age (numeric only)
   out[3]  = r[3] || ''; // Room
   out[4]  = r[5] || ''; // Diagnosis <= Cause Of Admission
   out[5]  = '';         // Section (filled with active section in app.js)
@@ -148,6 +158,86 @@ function mapLegacyRowToExpected(row9) {
   out[12] = '';         // Labs Abnormal
   return out;
 }
+
+// === Custom template registry (supports merged Excel exports with Unnamed columns) ===
+const CUSTOM_TEMPLATES = [
+  {
+    name: 'EXCEL_MERGED_WITH_UNNAMED',
+    recognize: (gotHeaderRaw) => {
+      const got = (gotHeaderRaw || []).map(h => (h ?? '').toString().trim());
+      const low = got.map(h => h.toLowerCase());
+      const base = low.filter(h => !/^unnamed:/.test(h));
+      const need = [
+        'patient code',
+        'patient name',
+        'patient age',
+        'room',
+        'admitting provider',
+        'cause of admission',
+        'diet',
+        'isolation',
+        'comments'
+      ];
+      return need.every(n => base.includes(n));
+    },
+    mapRow: (row, headerRaw) => {
+      const H = (headerRaw || []).map(h => (h ?? '').toString().trim());
+      const Hl = H.map(h => h.toLowerCase());
+
+      function idxsFor(keyLow) {
+        const idxs = [];
+        for (let i = 0; i < Hl.length; i++) {
+          if (Hl[i] === keyLow) {
+            idxs.push(i);
+            // attach contiguous Unnamed: columns
+            let j = i + 1;
+            while (j < Hl.length && /^unnamed:/.test(Hl[j])) {
+              idxs.push(j);
+              j++;
+            }
+          }
+        }
+        return idxs.length ? idxs : [-1];
+      }
+
+      function pickFirstNonEmpty(indexes) {
+        for (const idx of indexes) {
+          const v = (idx >= 0 ? row[idx] : '');
+          const s = (v == null ? '' : String(v)).trim();
+          if (s) return s;
+        }
+        return '';
+      }
+
+      const vCode = pickFirstNonEmpty(idxsFor('patient code'));
+      const vName = pickFirstNonEmpty(idxsFor('patient name'));
+      const vAgeRaw = pickFirstNonEmpty(idxsFor('patient age'));
+      const vAge = extractAgeNumber(vAgeRaw);
+      const vRoom = pickFirstNonEmpty(idxsFor('room'));
+      const vProv = pickFirstNonEmpty(idxsFor('admitting provider'));
+      const vDiag = pickFirstNonEmpty(idxsFor('cause of admission')); // -> Diagnosis
+      const vDiet = pickFirstNonEmpty(idxsFor('diet'));
+      const vIso  = pickFirstNonEmpty(idxsFor('isolation'));
+      const vComm = pickFirstNonEmpty(idxsFor('comments'));
+
+      return [
+        vCode,  // Patient Code
+        vName,  // Patient Name
+        vAge,   // Patient Age (numeric only)
+        vRoom,  // Room
+        vDiag,  // Diagnosis
+        '',     // Section → filled later in app.js
+        vProv,  // Admitting Provider
+        vDiet,  // Diet
+        vIso,   // Isolation
+        vComm,  // Comments
+        '',     // Symptoms (comma-separated)
+        '',     // Symptoms Notes (JSON map)
+        ''      // Labs Abnormal (comma-separated)
+      ];
+    }
+  }
+];
 
 function renderPreview(rows, mode) {
   const root = els.preview(); root.innerHTML='';
@@ -184,9 +274,9 @@ function renderPreview(rows, mode) {
   const note = document.createElement('div');
   note.className='small muted';
   note.style.marginTop='6px';
-  if (rows.length>11) note.textContent = `Showing first 10 rows (${rows.length-1} total). Mode: ${mode.toUpperCase()}.`;
-  else if (rows.length<=1) note.textContent = `No data rows detected. Mode: ${mode.toUpperCase()}.`;
-  else note.textContent = `${rows.length-1} data rows. Mode: ${mode.toUpperCase()}.`;
+  if (rows.length>11) note.textContent = `Showing first 10 rows (${rows.length-1} total). Mode: ${String(mode||'').toUpperCase()}.`;
+  else if (rows.length<=1) note.textContent = `No data rows detected. Mode: ${String(mode||'').toUpperCase()}.`;
+  else note.textContent = `${rows.length-1} data rows. Mode: ${String(mode||'').toUpperCase()}.`;
   root.appendChild(note);
 }
 
@@ -207,30 +297,48 @@ async function handleFileChange() {
     rows[0][0] = stripBOM(rows[0][0]||'');
     const header = rows[0].map(h=> norm(h));
 
+    // 1) Try standard NEW/LEGACY
     const chk = validateHeaders(header);
-    if (!chk.ok){
-      validatedRows=[]; els.preview().innerHTML = `<div class="toast danger" style="white-space:pre-wrap">${chk.error}</div>`;
-      UI.toast('Invalid headers. Please match NEW or LEGACY template.','danger'); return;
-    }
-
-    const dataRows = rows.slice(1).filter(r=> r.some(c=> norm(c) !== '') );
-
     let normalized = [];
-    if (chk.mode === 'new'){
-      normalized = dataRows.map(r => normalizeRowLength(r, EXPECTED_HEADERS.length));
-    } else {
-      normalized = dataRows.map(r => mapLegacyRowToExpected(r));
+    if (chk.ok){
+      const dataRows = rows.slice(1).filter(r=> r.some(c=> norm(c) !== '') );
+      if (chk.mode === 'new'){
+        normalized = dataRows.map(r => {
+          const out = normalizeRowLength(r, EXPECTED_HEADERS.length);
+          // Force age to numeric only
+          out[2] = extractAgeNumber(out[2]);
+          return out;
+        });
+      } else {
+        normalized = dataRows.map(r => mapLegacyRowToExpected(r));
+      }
+
+      validatedRows = normalized;
+      lastMode = chk.mode;
+      renderPreview([EXPECTED_HEADERS, ...validatedRows.slice(0,10)], chk.mode);
+
+      const msg = chk.mode==='legacy'
+        ? 'Legacy template detected. “Cause Of Admission” will be stored under “Diagnosis”.'
+        : 'Validated NEW template.';
+      UI.toast(`${msg} ${validatedRows.length} rows ready.`, 'success');
+      return;
     }
 
-    validatedRows = normalized;
-    lastMode = chk.mode;
+    // 2) Try custom templates
+    const custom = CUSTOM_TEMPLATES.find(tpl => tpl.recognize(rows[0]));
+    if (custom){
+      const dataRows = rows.slice(1).filter(r => r.some(c => norm(c) !== ''));
+      normalized = dataRows.map(r => custom.mapRow(r, rows[0]));
+      validatedRows = normalized;
+      lastMode = custom.name.toLowerCase();
+      renderPreview([EXPECTED_HEADERS, ...validatedRows.slice(0,10)], custom.name);
+      UI.toast(`Detected custom template: ${custom.name}. ${validatedRows.length} rows ready.`, 'success');
+      return;
+    }
 
-    renderPreview([EXPECTED_HEADERS, ...validatedRows.slice(0,10)], chk.mode);
-
-    const msg = chk.mode==='legacy'
-      ? 'Legacy template detected. “Cause Of Admission” will be stored under “Diagnosis”.'
-      : 'Validated NEW template.';
-    UI.toast(`${msg} ${validatedRows.length} rows ready.`, 'success');
+    // 3) If nothing matched
+    validatedRows=[]; els.preview().innerHTML = `<div class="toast danger" style="white-space:pre-wrap">${chk.error}</div>`;
+    UI.toast('Invalid headers. Please match NEW, LEGACY, or provide supported custom template.','danger');
 
   }catch(err){
     console.error(err);
