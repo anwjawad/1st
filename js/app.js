@@ -27,6 +27,8 @@ const DEFAULTS = {
 (function ensureDefaults(){
   if (!localStorage.getItem('pr.sheet'))  localStorage.setItem('pr.sheet',  DEFAULTS.spreadsheetId);
   if (!localStorage.getItem('pr.bridge')) localStorage.setItem('pr.bridge', DEFAULTS.bridgeUrl);
+  // NEW: default motion speed (CSS multiplier)
+  if (!localStorage.getItem('pr.motion')) localStorage.setItem('pr.motion', '1');
 })();
 
 // ===== Helpers =====
@@ -40,6 +42,12 @@ function toRoomKey(v){
 const q  = (sel, root=document)=>root.querySelector(sel);
 const qa = (sel, root=document)=>Array.from(root.querySelectorAll(sel));
 const toast = (msg, type='info') => UI.toast(msg, type);
+
+// Apply motion speed from localStorage to CSS var
+function applyMotionSpeedFromStorage(){
+  const v = localStorage.getItem('pr.motion') || '1';
+  document.documentElement.style.setProperty('--motion-multiplier', v);
+}
 
 // Labs helpers (unchanged)
 const LAB_REF = {
@@ -429,25 +437,25 @@ function bindUI(){
   q('#open-ppi')?.addEventListener('click', () => Calculators.openPPI());
   q('#open-pps')?.addEventListener('click', () => Calculators.openPPS());
 
-// Launch per-patient calculators from card chips (lightweight)
-document.body.addEventListener('click', (e) => {
-  const btn = e.target.closest('.btn-chip[data-calc]');
-  if (!btn) return;
+  // Launch per-patient calculators from card chips (lightweight)
+  document.body.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-chip[data-calc]');
+    if (!btn) return;
 
-  const code = btn.dataset.code || '';
-  if (code) {
-    // ثبّت المريض النشط عبر Patients API (الـ getter سيقرؤه لاحقًا)
-    Patients.setActiveByCode?.(code);
-    // حدّث data-code على مودال المريض (حتى لو المودال مش مفتوح)
-    const pm = q('#patient-modal');
-    if (pm) pm.dataset.code = code;
-  }
+    const code = btn.dataset.code || '';
+    if (code) {
+      // ثبّت المريض النشط عبر Patients API (الـ getter سيقرؤه لاحقًا)
+      Patients.setActiveByCode?.(code);
+      // حدّث data-code على مودال المريض (حتى لو المودال مش مفتوح)
+      const pm = q('#patient-modal');
+      if (pm) pm.dataset.code = code;
+    }
 
-  const type = btn.dataset.calc;
-  if (type === 'ecog') return Calculators.openECOG();
-  if (type === 'ppi')  return Calculators.openPPI();
-  if (type === 'pps')  return Calculators.openPPS();
-});
+    const type = btn.dataset.calc;
+    if (type === 'ecog') return Calculators.openECOG();
+    if (type === 'ppi')  return Calculators.openPPI();
+    if (type === 'pps')  return Calculators.openPPS();
+  });
 
 
   // Search
@@ -589,12 +597,12 @@ document.body.addEventListener('click', (e) => {
       if (id==='patient-modal') document.documentElement.style.overflow='';
     });
   });
-
+  
   // زر All Summaries
   q('#open-summaries')?.addEventListener('click', () => {
     Summaries.open();
   });
-
+  
   // Settings open via delegation
   document.addEventListener('click', (e)=>{
     const t=e.target.closest('#open-settings'); if(!t) return;
@@ -602,6 +610,10 @@ document.body.addEventListener('click', (e) => {
     q('#set-spreadsheet-id').value = State.config.spreadsheetId;
     q('#set-bridge-url').value     = State.config.bridgeUrl;
     q('#set-ai-endpoint').value    = State.config.aiEndpoint;
+    // NEW: set current motion value into the select
+    const motion = localStorage.getItem('pr.motion') || '1';
+    const sel = q('#set-motion-speed');
+    if (sel) sel.value = motion;
     q('#settings-modal')?.classList.remove('hidden');
   });
 
@@ -610,6 +622,12 @@ document.body.addEventListener('click', (e) => {
     State.config.spreadsheetId = q('#set-spreadsheet-id').value.trim();
     State.config.bridgeUrl     = q('#set-bridge-url').value.trim();
     State.config.aiEndpoint    = q('#set-ai-endpoint').value.trim();
+
+    // NEW: motion speed
+    const motionVal = (q('#set-motion-speed')?.value || '1').trim() || '1';
+    localStorage.setItem('pr.motion', motionVal);
+    document.documentElement.style.setProperty('--motion-multiplier', motionVal);
+
     localStorage.setItem('pr.sheet',  State.config.spreadsheetId);
     localStorage.setItem('pr.bridge', State.config.bridgeUrl);
     localStorage.setItem('pr.ai',     State.config.aiEndpoint);
@@ -1050,6 +1068,8 @@ document.addEventListener('input', (e)=>{
 // ===== Public Entry =====
 export const App = {
   async start(){
+    // Apply motion multiplier before any UI renders/animations
+    applyMotionSpeedFromStorage();
     bindUI();
     Patients.init?.(Bus, State);
     ESAS.init?.(Bus, State);
