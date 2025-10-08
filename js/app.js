@@ -387,6 +387,24 @@ q('#open-opioid')?.addEventListener('click', () => Calculators.openOpioid());
 q('#open-ppi')?.addEventListener('click', () => Calculators.openPPI());
 q('#open-pps')?.addEventListener('click', () => Calculators.openPPS());
 
+  // Launch per-patient calculators from card chips (lightweight)
+document.body.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-chip[data-calc]');
+  if (!btn) return;
+
+  const code = btn.dataset.code;
+  if (code) {
+    // set active patient context so "Link to Latest Notes" knows where to append
+    const p = State.patients.find(x => x['Patient Code'] === code);
+    if (p) State.activePatient = p;
+  }
+
+  const type = btn.dataset.calc;
+  if (type === 'ecog') return Calculators.openECOG();
+  if (type === 'ppi')  return Calculators.openPPI();
+  if (type === 'pps')  return Calculators.openPPS();
+});
+
   // Search
   const s=q('#search');
   if (s) s.addEventListener('input', Utils.debounce(e=>{
