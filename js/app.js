@@ -361,7 +361,7 @@ async function loadAllFromSheets(){
     State.loading=false;
   }
 }
-
+import { Summaries } from 'js/summaries.js'; // فوق بداية الملف app.js لو مش موجود
 // ===== Bind UI =====
 function bindUI(){
   UI.init?.(Bus);
@@ -424,7 +424,11 @@ function bindUI(){
       toast('Section deleted and patients moved to “Default”.','success');
     }catch{ toast('Failed to delete section.','danger'); }
   });
-
+  
+q('#open-summaries')?.addEventListener('click', () => {
+  Summaries.open();
+});
+  
   // New patient
   q('#btn-new-patient')?.addEventListener('click', async ()=>{
     try{
@@ -446,6 +450,7 @@ function bindUI(){
   });
 
   // Import
+  
   q('#btn-import')?.addEventListener('click', ()=>{
     q('#csv-preview').innerHTML=''; q('#csv-file-input').value='';
     q('#import-modal')?.classList.remove('hidden');
