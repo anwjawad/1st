@@ -54,12 +54,20 @@ function norm(s){ return String(s ?? '').replace(/\u00A0/g,' ').trim(); } // tri
 function eqCase(a,b){ return norm(a).toLowerCase() === norm(b).toLowerCase(); }
 
 function detectDelimiter(text) {
-  const first = (text.split(/\r?\n/, 1)[0] || '');
+  const first = (text.split(/
+?
+/, 1)[0] || '');
   const counts = {
-    ',': (first.match(/,/g)||[]).length,
-    '\\t': (first.match(/\\t/g)||[]).length,
-    ';': (first.match(/;/g)||[]).length
+    ',': (first.match(/,/g) || []).length,
+    '	': (first.match(/	/g) || []).length,
+    ';': (first.match(/;/g) || []).length
   };
+  let best = ',', max = -1;
+  for (const d of [',','	',';']) {
+    if (counts[d] > max) { max = counts[d]; best = d; }
+  }
+  return best;
+};
   let best = ',', max = -1;
   const keys = [',','\\t',';'];
   keys.forEach(d=>{ if (counts[d] > max){ max = counts[d]; best = d; } });
@@ -73,20 +81,28 @@ function parseDSV(text, delim) {
   const pushField=()=>{ row.push(f); f=''; };
   const pushRow=()=>{ rows.push(row); row=[]; };
 
-  const D = delim === '\\t' ? '\\t' : delim;
+  const D = (delim === '	') ? '	' : delim;
 
   while (i<text.length){
     const ch = text[i];
     if (inQ){
-      if (ch === '\"'){
-        if (text[i+1] === '\"'){ f+='\"'; i+=2; continue; }
+      if (ch === '"'){
+        if (text[i+1] === '"'){ f+='"'; i+=2; continue; }
         inQ=false; i++; continue;
       } else { f+=ch; i++; continue; }
     } else {
-      if (ch === '\"'){ inQ=true; i++; continue; }
+      if (ch === '"'){ inQ=true; i++; continue; }
       if (ch === D){ pushField(); i++; continue; }
-      if (ch === '\\n'){ pushField(); pushRow(); i++; continue; }
-      if (ch === '\\r'){ i++; continue; }
+      if (ch === '
+'){ pushField(); pushRow(); i++; continue; }
+      if (ch === '
+'){
+        // handle CR or CRLF
+        pushField(); pushRow();
+        if (text[i+1] === '
+') i+=2; else i+=1;
+        continue;
+      }
       f += ch; i++;
     }
   }
