@@ -1,10 +1,11 @@
 // js/importer.js
-// Robust CSV/TSV Importer
+// Robust CSV/TSV/PDF→CSV Importer
+// - PRIORITY: Custom template that ignores empty/Unnamed columns comes FIRST
 // - Accepts NEW template (13 cols), LEGACY template (9 cols), or CUSTOM merged Excel export
 // - Legacy maps “Cause Of Admission” -> Diagnosis
 // - Case/whitespace tolerant; handles BOM; delimiter auto-detect (, ; \t)
 // - Always returns rows aligned to EXPECTED_HEADERS so app.js can build objects reliably
-// - Scrollable preview is handled by container CSS in index/styles (white-space: nowrap)
+// - Preview is scrollable via container CSS (white-space: nowrap)
 
 import { UI } from './ui.js';
 
@@ -53,54 +54,44 @@ function stripBOM(s){ return (s && s.charCodeAt(0) === 0xFEFF) ? s.slice(1) : s;
 function norm(s){ return String(s ?? '').replace(/\u00A0/g,' ').trim(); } // trim & nbsp
 function eqCase(a,b){ return norm(a).toLowerCase() === norm(b).toLowerCase(); }
 
+// Auto-detect delimiter from first line
 function detectDelimiter(text) {
-  const first = (text.split(/
-?
-/, 1)[0] || '');
+  const first = ((text || '').split(/\r?\n/, 1)[0] || '');
   const counts = {
     ',': (first.match(/,/g) || []).length,
-    '	': (first.match(/	/g) || []).length,
+    '\t': (first.match(/\t/g) || []).length,
     ';': (first.match(/;/g) || []).length
   };
   let best = ',', max = -1;
-  for (const d of [',','	',';']) {
+  for (const d of [',','\t',';']) {
     if (counts[d] > max) { max = counts[d]; best = d; }
   }
   return best;
-};
-  let best = ',', max = -1;
-  const keys = [',','\\t',';'];
-  keys.forEach(d=>{ if (counts[d] > max){ max = counts[d]; best = d; } });
-  return best === '\\t' ? '\\t' : best;
 }
 
 // Basic DSV parser with quotes
 function parseDSV(text, delim) {
   const rows = [];
-  let i=0, f='', row=[], inQ=false;
-  const pushField=()=>{ row.push(f); f=''; };
-  const pushRow=()=>{ rows.push(row); row=[]; };
+  let i = 0, f = '', row = [], inQ = false;
+  const D = (delim === '\t') ? '\t' : delim;
 
-  const D = (delim === '	') ? '	' : delim;
+  const pushField = () => { row.push(f); f = ''; };
+  const pushRow = () => { rows.push(row); row = []; };
 
-  while (i<text.length){
+  while (i < text.length) {
     const ch = text[i];
-    if (inQ){
-      if (ch === '"'){
-        if (text[i+1] === '"'){ f+='"'; i+=2; continue; }
-        inQ=false; i++; continue;
-      } else { f+=ch; i++; continue; }
+    if (inQ) {
+      if (ch === '"') {
+        if (text[i+1] === '"') { f += '"'; i += 2; continue; }
+        inQ = false; i++; continue;
+      } else { f += ch; i++; continue; }
     } else {
-      if (ch === '"'){ inQ=true; i++; continue; }
-      if (ch === D){ pushField(); i++; continue; }
-      if (ch === '
-'){ pushField(); pushRow(); i++; continue; }
-      if (ch === '
-'){
-        // handle CR or CRLF
+      if (ch === '"') { inQ = true; i++; continue; }
+      if (ch === D) { pushField(); i++; continue; }
+      if (ch === '\n') { pushField(); pushRow(); i++; continue; }
+      if (ch === '\r') {
         pushField(); pushRow();
-        if (text[i+1] === '
-') i+=2; else i+=1;
+        if (text[i+1] === '\n') i += 2; else i += 1;
         continue;
       }
       f += ch; i++;
@@ -114,8 +105,8 @@ function parseDSV(text, delim) {
 // Extract first integer from an age string -> '72 Years 4 Months' -> '72'
 function extractAgeNumber(val){
   const s = (val == null ? '' : String(val)).trim();
-  const m = s.match(/\\b(\\d{1,3})\\b/);
-  return m ? m[1] : (s && /^\\d+$/.test(s) ? s : '');
+  const m = s.match(/\b(\d{1,3})\b/);
+  return m ? m[1] : (s && /^\d+$/.test(s) ? s : '');
 }
 
 // Validate/recognize header
@@ -132,7 +123,7 @@ function validateHeaders(gotHeaderRaw) {
     return { ok: true, mode: 'legacy', message: 'Detected LEGACY template. Mapping “Cause Of Admission” → “Diagnosis”.' };
   }
 
-  // Try relaxed legacy recognition by set equality (just in case extra spaces/case)
+  // Relaxed legacy
   const gotLower = got.map(x=>x.toLowerCase());
   const legacyLower = LEGACY_HEADERS.map(x=>x.toLowerCase());
   const isLegacyRelaxed = got.length===LEGACY_HEADERS.length && gotLower.every((x,i)=> x===legacyLower[i]);
@@ -175,14 +166,19 @@ function mapLegacyRowToExpected(row9) {
   return out;
 }
 
-// === Custom template registry (supports merged Excel exports with Unnamed columns) ===
+/* =========================
+   CUSTOM TEMPLATE REGISTRY
+   (Highest priority; ignores Unnamed/empty columns)
+   ========================= */
+
 const CUSTOM_TEMPLATES = [
 
+  // PRIMARY: your main template with empty/Unnamed columns ignored (highest priority)
   {
     name: 'MAIN_TEMPLATE_EMPTY_COLS',
     recognize: (gotHeaderRaw) => {
       const got = (gotHeaderRaw || []).map(h => (h ?? '').toString().trim());
-      // Remove empty / unnamed headers
+      // Filter out empty / unnamed headers
       const base = got.filter(h => h && !/^unnamed[:\s]*/i.test(h));
       const low = base.map(h => h.toLowerCase());
       const need = [
@@ -202,8 +198,8 @@ const CUSTOM_TEMPLATES = [
       const H = (headerRaw || []).map(h => (h ?? '').toString().trim());
       const Hl = H.map(h => h.toLowerCase());
 
+      // find first matching non-empty header cell (ignore unnamed/empty)
       function idxFor(keyLow){
-        // find the first matching non-empty header cell (ignore unnamed/empty columns)
         for (let i=0;i<Hl.length;i++){
           if (!Hl[i]) continue;
           if (/^unnamed[:\s]*/.test(Hl[i])) continue;
@@ -211,6 +207,7 @@ const CUSTOM_TEMPLATES = [
         }
         return -1;
       }
+
       const iCode = idxFor('patient code');
       const iName = idxFor('patient name');
       const iAge  = idxFor('patient age');
@@ -239,7 +236,7 @@ const CUSTOM_TEMPLATES = [
         vAge,   // Patient Age (numeric only)
         vRoom,  // Room
         vDiag,  // Diagnosis
-        '',     // Section -> filled later
+        '',     // Section -> filled later (active section)
         vProv,  // Admitting Provider
         vDiet,  // Diet
         vIso,   // Isolation
@@ -251,6 +248,7 @@ const CUSTOM_TEMPLATES = [
     }
   },
 
+  // Secondary: Excel merged with contiguous Unnamed: columns (still custom)
   {
     name: 'EXCEL_MERGED_WITH_UNNAMED',
     recognize: (gotHeaderRaw) => {
@@ -329,6 +327,10 @@ const CUSTOM_TEMPLATES = [
   }
 ];
 
+/* =========================
+   PREVIEW
+   ========================= */
+
 function renderPreview(rows, mode) {
   const root = els.preview(); root.innerHTML='';
   const wrap = document.createElement('div');
@@ -370,6 +372,10 @@ function renderPreview(rows, mode) {
   root.appendChild(note);
 }
 
+/* =========================
+   MAIN HANDLER
+   ========================= */
+
 async function handleFileChange() {
   const file = els.file()?.files?.[0];
   if (!file) return;
@@ -387,11 +393,27 @@ async function handleFileChange() {
     rows[0][0] = stripBOM(rows[0][0]||'');
     const header = rows[0].map(h=> norm(h));
 
-    // 1) Try standard NEW/LEGACY
+    // =======================================================
+    // 1) Try CUSTOM templates FIRST (highest priority)
+    // =======================================================
+    const custom = CUSTOM_TEMPLATES.find(tpl => tpl.recognize(rows[0]));
+    if (custom){
+      const dataRows = rows.slice(1).filter(r => r.some(c => norm(c) !== ''));
+      const normalized = dataRows.map(r => custom.mapRow(r, rows[0]));
+      validatedRows = normalized;
+      lastMode = custom.name.toLowerCase();
+      renderPreview([EXPECTED_HEADERS, ...validatedRows.slice(0,10)], custom.name);
+      UI.toast(`Detected custom template: ${custom.name}. ${validatedRows.length} rows ready.`, 'success');
+      return;
+    }
+
+    // =======================================================
+    // 2) Then NEW/LEGACY templates
+    // =======================================================
     const chk = validateHeaders(header);
-    let normalized = [];
     if (chk.ok){
       const dataRows = rows.slice(1).filter(r=> r.some(c=> norm(c) !== '') );
+      let normalized = [];
       if (chk.mode === 'new'){
         normalized = dataRows.map(r => {
           const out = normalizeRowLength(r, EXPECTED_HEADERS.length);
@@ -414,21 +436,9 @@ async function handleFileChange() {
       return;
     }
 
-    // 2) Try custom templates
-    const custom = CUSTOM_TEMPLATES.find(tpl => tpl.recognize(rows[0]));
-    if (custom){
-      const dataRows = rows.slice(1).filter(r => r.some(c => norm(c) !== ''));
-      normalized = dataRows.map(r => custom.mapRow(r, rows[0]));
-      validatedRows = normalized;
-      lastMode = custom.name.toLowerCase();
-      renderPreview([EXPECTED_HEADERS, ...validatedRows.slice(0,10)], custom.name);
-      UI.toast(`Detected custom template: ${custom.name}. ${validatedRows.length} rows ready.`, 'success');
-      return;
-    }
-
     // 3) If nothing matched
     validatedRows=[]; els.preview().innerHTML = `<div class="toast danger" style="white-space:pre-wrap">${chk.error}</div>`;
-    UI.toast('Invalid headers. Please match NEW, LEGACY, or provide supported custom template.','danger');
+    UI.toast('Invalid headers. Please match NEW, LEGACY, or the supported custom template.','danger');
 
   }catch(err){
     console.error(err);
@@ -436,6 +446,10 @@ async function handleFileChange() {
     UI.toast('Failed to read/parse file.','danger');
   }
 }
+
+/* =========================
+   PUBLIC API
+   ========================= */
 
 export const Importer = {
   init(bus, state){
