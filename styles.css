@@ -742,3 +742,97 @@ body[data-printing="true"] #print-root { display:block !important; }
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+/* =========================
+   Smooth Micro-Animations Pack (fade + slide + elevation)
+   Scope-only CSS (no JS). Safe defaults, motion-reduced friendly.
+   ========================= */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* --- Modal: backdrop fade + card slide/fade --- */
+  .modal {
+    /* عند إظهار المودال يتم تفعيل هذا الفيد على الخلفية */
+    animation: modal-backdrop-in var(--speed-med) both;
+  }
+  @keyframes modal-backdrop-in {
+    from { background: rgba(6,8,16,0.00); }
+    to   { background: rgba(6,8,16,0.55); }
+  }
+
+  /* نحرص على وجود حالة ابتدائية أكثر نعومة قبل الانتقال (slide+fade)
+     ملاحظة: لديك أساسًا انتقال داخل الملف، هذا يُكمله ويجعله أوضح */
+  .modal-card {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  .modal:not(.hidden) .modal-card {
+    transform: translateY(0);
+    opacity: 1;
+    transition: transform var(--speed-med), opacity var(--speed-med);
+  }
+
+  /* --- Sections: لمس حركة خفيفة عند التفاعل مع الحبوب (pills) --- */
+  #sections-list .pill {
+    transition:
+      transform var(--speed-fast),
+      box-shadow var(--speed-fast),
+      background-color var(--speed-med),
+      border-color var(--speed-med),
+      color var(--speed-med);
+  }
+  #sections-list .pill:active {
+    transform: scale(0.985);
+  }
+  #sections-list .pill.active {
+    /* إبراز بسيط عند التنشيط */
+    filter: saturate(1.06);
+  }
+
+  /* --- Patients list: دخول ناعم للبطاقات (staggered fade+slide) --- */
+  #patients-list .row {
+    animation: list-item-in var(--speed-med) both;
+    transform-origin: 50% 0%;
+  }
+  @keyframes list-item-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.995); }
+    to   { opacity: 1; transform: translateY(0)   scale(1.000); }
+  }
+
+  /* Stagger بسيط عبر nth-child (يكفي لأول 12 عنصر غالبًا) */
+  #patients-list .row:nth-child(1)  { animation-delay: 0ms;  }
+  #patients-list .row:nth-child(2)  { animation-delay: 25ms; }
+  #patients-list .row:nth-child(3)  { animation-delay: 50ms; }
+  #patients-list .row:nth-child(4)  { animation-delay: 75ms; }
+  #patients-list .row:nth-child(5)  { animation-delay: 100ms; }
+  #patients-list .row:nth-child(6)  { animation-delay: 125ms; }
+  #patients-list .row:nth-child(7)  { animation-delay: 150ms; }
+  #patients-list .row:nth-child(8)  { animation-delay: 175ms; }
+  #patients-list .row:nth-child(9)  { animation-delay: 200ms; }
+  #patients-list .row:nth-child(10) { animation-delay: 225ms; }
+  #patients-list .row:nth-child(11) { animation-delay: 250ms; }
+  #patients-list .row:nth-child(12) { animation-delay: 275ms; }
+
+  /* --- Card hover: elevation أنعم وواضح بدون مبالغة --- */
+  /* بطاقات المرضى (rows) */
+  #patients-col .row:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 14px 44px rgba(0,0,0,.32),
+      0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent) inset;
+  }
+  /* البطاقات العامة .card */
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 16px 48px rgba(0,0,0,.28),
+      0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent) inset;
+  }
+}
+
+/* احترام تفضيل تقليل الحركة */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
