@@ -697,3 +697,4 @@ body[data-printing="true"] #print-root { display:block !important; }
 .calc-badge.good { background: color-mix(in oklab, var(--success) 16%, transparent); }
 .calc-badge.warn { background: color-mix(in oklab, var(--warn) 16%, transparent); }
 .calc-badge.danger { background: color-mix(in oklab, var(--danger) 16%, transparent); color:#fff; }
+.modal-card.modal-card--wide { max-width: 980px !important; }
