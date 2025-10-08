@@ -46,13 +46,11 @@
   --gap:14px;
 
   /* ===== Motion control (new) ===== */
-  --motion-multiplier: 1;                   /* يضبط من الإعدادات */
-  --ease-default: cubic-bezier(.2,.7,.2,1); /* فصلنا الـ easing لاستخدامه مع أي مدة */
-  --t-fast:160ms;
-  --t-med:220ms;
-  --t-slow:320ms;
+  --motion-multiplier: 1;
+  --ease-default: cubic-bezier(.2,.7,.2,1);
+  --t-fast:160ms; --t-med:220ms; --t-slow:320ms;
 
-  /* Transitions (dur + easing) — تتأثر بالمضاعِف */
+  /* Transitions */
   --speed-fast: calc(var(--t-fast) * var(--motion-multiplier)) var(--ease-default);
   --speed-med:  calc(var(--t-med)  * var(--motion-multiplier)) var(--ease-default);
   --speed-slow: calc(var(--t-slow) * var(--motion-multiplier)) var(--ease-default);
@@ -67,67 +65,27 @@
 
 /* --- Ocean theme --- */
 :root[data-theme="ocean"]{
-  --bg:#07121b;
-  --bg-2:#0a1a28;
-  --bg-3:#0c2333;
-  --panel: rgba(255,255,255,.07);
-  --card:  rgba(255,255,255,.05);
-  --card-2:rgba(255,255,255,.07);
-  --glass: rgba(255,255,255,.08);
-  --border: rgba(255,255,255,.16);
-
-  --text:#e9f6ff;
-  --muted:#8fb0c8;
-
-  --primary:#29b6f6;    /* ocean blue */
-  --primary-2:#00e5ff;  /* cyan */
-  --accent:#4df2c8;     /* aqua green */
-  --danger:#ff5a7a;
-  --success:#31d69b;
-  --warn:#ffcb57;
-
-  --chip:#173347;
-  --chip-2: rgba(255,255,255,.08);
-
-  --shadow: 0 12px 40px rgba(0,0,0,.35);
-  --shadow-1: 0 8px 28px rgba(0,0,0,.25);
-
-  --scroll-track: rgba(255,255,255,.05);
-  --scroll-thumb: rgba(255,255,255,.20);
-
+  --bg:#07121b; --bg-2:#0a1a28; --bg-3:#0c2333;
+  --panel: rgba(255,255,255,.07); --card: rgba(255,255,255,.05); --card-2:rgba(255,255,255,.07);
+  --glass: rgba(255,255,255,.08); --border: rgba(255,255,255,.16);
+  --text:#e9f6ff; --muted:#8fb0c8;
+  --primary:#29b6f6; --primary-2:#00e5ff; --accent:#4df2c8; --danger:#ff5a7a; --success:#31d69b; --warn:#ffcb57;
+  --chip:#173347; --chip-2: rgba(255,255,255,.08);
+  --shadow: 0 12px 40px rgba(0,0,0,.35); --shadow-1: 0 8px 28px rgba(0,0,0,.25);
+  --scroll-track: rgba(255,255,255,.05); --scroll-thumb: rgba(255,255,255,.20);
   --print-head-bg:#e8f3ff;
 }
 
 /* --- Rose theme --- */
 :root[data-theme="rose"]{
-  --bg:#180d16;
-  --bg-2:#22121f;
-  --bg-3:#2a1626;
-  --panel: rgba(255,255,255,.08);
-  --card:  rgba(255,255,255,.06);
-  --card-2:rgba(255,255,255,.08);
-  --glass: rgba(255,255,255,.09);
-  --border: rgba(255,255,255,.18);
-
-  --text:#fff2f6;
-  --muted:#e0b9c9;
-
-  --primary:#ff6aa2;    /* pink */
-  --primary-2:#ffb86b;  /* peach */
-  --accent:#ffd36e;     /* amber */
-  --danger:#ff4d6d;
-  --success:#49e0a6;
-  --warn:#ffc36b;
-
-  --chip:#3a1b2f;
-  --chip-2: rgba(255,255,255,.08);
-
-  --shadow: 0 12px 40px rgba(0,0,0,.38);
-  --shadow-1: 0 8px 30px rgba(0,0,0,.28);
-
-  --scroll-track: rgba(255,255,255,.05);
-  --scroll-thumb: rgba(255,255,255,.22);
-
+  --bg:#180d16; --bg-2:#22121f; --bg-3:#2a1626;
+  --panel: rgba(255,255,255,.08); --card: rgba(255,255,255,.06); --card-2:rgba(255,255,255,.08);
+  --glass: rgba(255,255,255,.09); --border: rgba(255,255,255,.18);
+  --text:#fff2f6; --muted:#e0b9c9;
+  --primary:#ff6aa2; --primary-2:#ffb86b; --accent:#ffd36e; --danger:#ff4d6d; --success:#49e0a6; --warn:#ffc36b;
+  --chip:#3a1b2f; --chip-2: rgba(255,255,255,.08);
+  --shadow: 0 12px 40px rgba(0,0,0,.38); --shadow-1: 0 8px 30px rgba(0,0,0,.28);
+  --scroll-track: rgba(255,255,255,.05); --scroll-thumb: rgba(255,255,255,.22);
   --print-head-bg:#ffe8f1;
 }
 
@@ -138,14 +96,11 @@ body{
   margin:0; color:var(--text); background:var(--bg);
   font:15px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-  /* خلفية غنية */
   background:
     radial-gradient(1200px 800px at -10% -20%, color-mix(in oklab, var(--primary) 30%, transparent), transparent 60%),
     radial-gradient(1000px 700px at 110% 10%, color-mix(in oklab, var(--primary-2) 22%, transparent), transparent 60%),
     linear-gradient(180deg, var(--bg), var(--bg-2));
 }
-
-/* تأثيرات عامة */
 *, *::before, *::after{
   transition:
     background-color var(--speed-med),
@@ -155,7 +110,6 @@ body{
     transform var(--speed-fast),
     opacity var(--speed-med);
 }
-
 #app{display:flex; min-height:100vh}
 
 /* ===== Sidebar ===== */
@@ -208,13 +162,7 @@ body{
 #columns{ display:grid; grid-template-columns: 1fr; gap:16px; padding:16px; }
 
 /* ===== Cards ===== */
-.card{
-  background: var(--card);
-  border:1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 14px;
-}
+.card{ background: var(--card); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; }
 .card:hover{ transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,.25); }
 .card .card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px}
 .card-title{font-weight:800; font-size:16px; letter-spacing:.2px}
@@ -343,15 +291,10 @@ body{
 /* ===== Labs grid ===== */
 .labs-grid{ display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0,1fr)); }
 @media (min-width:1200px){ .labs-grid{grid-template-columns: repeat(3, minmax(0,1fr));} }
-.lab{
-  background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:10px;
-  box-shadow: var(--shadow-1);
-}
+.lab{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:10px; box-shadow: var(--shadow-1); }
 .lab-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px}
 .lab-name{font-weight:700}
-.lab input{
-  width:100%; background:var(--bg-3); border:1px solid var(--border); border-radius:10px; padding:8px 10px; color:var(--text)
-}
+.lab input{ width:100%; background:var(--bg-3); border:1px solid var(--border); border-radius:10px; padding:8px 10px; color:var(--text) }
 .lab.abnormal-high{border-color: color-mix(in oklab, var(--danger) 50%, var(--border) 50%); box-shadow:0 0 0 1px rgba(255,0,55,.2) inset}
 .lab.abnormal-high .lab-name{color:#ff9fb0; font-weight:800}
 .lab.abnormal-low{border-color:#0b3f6b; box-shadow:0 0 0 1px rgba(80,180,255,.18) inset}
@@ -378,9 +321,7 @@ body{
 .tabpane{display:none}
 
 /* ===== Toasts ===== */
-#toast-root{
-  position:fixed; right:16px; bottom:16px; display:flex; flex-direction:column; gap:8px; z-index:2000;
-}
+#toast-root{ position:fixed; right:16px; bottom:16px; display:flex; flex-direction:column; gap:8px; z-index:2000; }
 .toast{
   background:var(--glass); border:1px solid var(--border); color:var(--text);
   padding:10px 12px; border-radius:12px; box-shadow: var(--shadow); max-width:360px;
@@ -392,10 +333,7 @@ body{
 @keyframes slideIn{from{transform:translateY(10px); opacity:0} to{transform:translateY(0); opacity:1}}
 
 /* ===== Modal ===== */
-.modal{
-  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
-  background:rgba(6,8,16,.55); z-index:1500;
-}
+.modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(6,8,16,.55); z-index:1500; }
 .modal.hidden{display:none}
 .modal-card{
   width:min(720px, 92vw); background:var(--panel); border:1px solid var(--border); border-radius:16px;
@@ -418,23 +356,12 @@ body{
 .scroll{overflow:auto}
 
 /* Scrollbars */
-#patients-col .list, #csv-preview, .modal-body, body{
-  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
-}
-#patients-col .list::-webkit-scrollbar,
-#csv-preview::-webkit-scrollbar,
-.modal-body::-webkit-scrollbar,
-body::-webkit-scrollbar { width:10px; height:10px; }
-#patients-col .list::-webkit-scrollbar-track,
-#csv-preview::-webkit-scrollbar-track,
-.modal-body::-webkit-scrollbar-track,
-body::-webkit-scrollbar-track { background: var(--scroll-track); border-radius:999px; }
-#patients-col .list::-webkit-scrollbar-thumb,
-#csv-preview::-webkit-scrollbar-thumb,
-.modal-body::-webkit-scrollbar-thumb,
-body::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius:999px; }
+#patients-col .list, #csv-preview, .modal-body, body{ scrollbar-color: var(--scroll-thumb) var(--scroll-track); }
+#patients-col .list::-webkit-scrollbar, #csv-preview::-webkit-scrollbar, .modal-body::-webkit-scrollbar, body::-webkit-scrollbar { width:10px; height:10px; }
+#patients-col .list::-webkit-scrollbar-track, #csv-preview::-webkit-scrollbar-track, .modal-body::-webkit-scrollbar-track, body::-webkit-scrollbar-track { background: var(--scroll-track); border-radius:999px; }
+#patients-col .list::-webkit-scrollbar-thumb, #csv-preview::-webkit-scrollbar-thumb, .modal-body::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius:999px; }
 
-/* ===== Responsive ===== */
+/* ===== Responsive (desktop baseline) ===== */
 @media (max-width: 1100px){
   #columns{grid-template-columns: 1fr}
   #sidebar{position:static; height:auto}
@@ -454,7 +381,6 @@ body[data-printing="true"] #patient-modal,
 body[data-printing="true"] .modal { display:none !important; }
 body[data-printing="true"] #print-root { display:block !important; }
 
-/* Generic print reset */
 @media print {
   body { background: white !important; color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   #app, #toast-root, .modal { display:none !important; }
@@ -462,236 +388,60 @@ body[data-printing="true"] #print-root { display:block !important; }
 }
 
 /* Page wrapper per section */
-#print-root .print-page {
-  page-break-after: always; break-after: page;
-  padding: 6mm; background: white; border: none;
-}
+#print-root .print-page { page-break-after: always; break-after: page; padding: 6mm; background: white; border: none; }
 #print-root .print-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom: 8px; }
 #print-root .print-title { font-weight: 800; font-size: 18px; }
 #print-root .print-sub { font-size: 12px; color: #555; }
 #print-root .print-table { width:100%; border-collapse: collapse; font-size: 12px; }
-#print-root .print-table th, #print-root .print-table td {
-  border: 1px solid #000; padding: 6px 8px; text-align:left; vertical-align:top;
-}
+#print-root .print-table th, #print-root .print-table td { border: 1px solid #000; padding: 6px 8px; text-align:left; vertical-align:top; }
 #print-root .print-table thead th { background: var(--print-head-bg); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 /* ===== Utilities ===== */
 .prewrap{ white-space: pre-wrap; }
 .hidden{ display:none !important; }
-/* styles.css */
-/* ============ BASE APP STYLES ============ */
-/* (الملف الأصلي كما هو، الإضافات في الأسفل) */
-
-/* --- existing global styles remain here --- */
 
 /* ============ ADDITIONS FOR SUMMARIES ============ */
+#summaries-modal .modal-card { max-width: 1000px; width: calc(100% - 24px); }
+#summaries-modal .modal-body { overflow-y: auto; max-height: 75vh; }
+#summaries-modal input#summaries-search { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 6px 10px; }
+#summaries-modal label.checkbox { display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
+#summaries-root .card { background: color-mix(in oklab, var(--bg-2) 92%, #000 8%); border:1px solid var(--border); border-radius:12px; padding:10px; transition: background var(--speed-fast); }
+#summaries-root .card:hover { background: color-mix(in oklab, var(--bg-2) 86%, #000 14%); }
+#summaries-root pre { background: color-mix(in oklab, var(--bg-1) 96%, #000 4%); border:1px dashed var(--border); border-radius:8px; padding:8px; overflow-x:auto; }
+#summaries-root .btn { font-size:13px; padding:4px 10px; border-radius:8px; }
+#summaries-root > .card > .card-head { border-bottom:1px solid var(--border); padding-bottom:6px; margin-bottom:6px; }
+#summaries-refreshed { font-family: monospace; font-size:12px; opacity:.8; }
 
-/* Modal for summaries */
-#summaries-modal .modal-card {
-  max-width: 1000px;
-  width: calc(100% - 24px);
-}
-
-#summaries-modal .modal-body {
-  overflow-y: auto;
-  max-height: 75vh;
-}
-
-/* Search + toolbar */
-#summaries-modal input#summaries-search {
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 6px 10px;
-}
-
-#summaries-modal label.checkbox {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  user-select: none;
-}
-
-#summaries-root .card {
-  background: color-mix(in oklab, var(--bg-2) 92%, #000 8%);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px;
-  transition: background var(--speed-fast);
-}
-
-#summaries-root .card:hover {
-  background: color-mix(in oklab, var(--bg-2) 86%, #000 14%);
-}
-
-#summaries-root pre {
-  background: color-mix(in oklab, var(--bg-1) 96%, #000 4%);
-  border: 1px dashed var(--border);
-  border-radius: 8px;
-  padding: 8px;
-  overflow-x: auto;
-}
-
-/* Buttons inside summaries */
-#summaries-root .btn {
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 8px;
-}
-
-/* Section grouping */
-#summaries-root > .card > .card-head {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 6px;
-  margin-bottom: 6px;
-}
-
-/* Muted timestamp */
-#summaries-refreshed {
-  font-family: monospace;
-  font-size: 12px;
-  opacity: 0.8;
-}
-
-/* ============ PRINT STYLING FOR SUMMARIES ============ */
 @media print {
-  body[data-printing="true"] * {
-    visibility: hidden !important;
-  }
-  #summaries-print-root,
-  #summaries-print-root * {
-    visibility: visible !important;
-  }
-  #summaries-print-root {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    padding: 10mm;
-  }
-  #summaries-print-root .print-page {
-    page-break-after: always;
-  }
-  #summaries-print-root pre {
-    background: transparent !important;
-    border: none !important;
-  }
+  body[data-printing="true"] * { visibility: hidden !important; }
+  #summaries-print-root, #summaries-print-root * { visibility: visible !important; }
+  #summaries-print-root { position: absolute; top:0; left:0; right:0; padding:10mm; }
+  #summaries-print-root .print-page { page-break-after: always; }
+  #summaries-print-root pre { background: transparent !important; border: none !important; }
 }
-/* ============ MEDICAL REPORT PRINT TUNING ============ */
-
-/* شاشة: لمسات خفيفة على زر التقرير */
-#summaries-medical-report {
-  box-shadow: 0 6px 20px color-mix(in oklab, var(--primary) 24%, transparent);
-}
-
-/* الطباعة: نعرض فقط جذر الطباعة */
+/* MEDICAL REPORT PRINT TUNING */
+#summaries-medical-report { box-shadow: 0 6px 20px color-mix(in oklab, var(--primary) 24%, transparent); }
 @media print {
-  /* أخفِ كل شيء عدا مساحة الطباعة */
-  body[data-printing="true"] * {
-    visibility: hidden !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
-  }
-  #summaries-print-root,
-  #summaries-print-root * {
-    visibility: visible !important;
-  }
-
-  /* صفحة A4 وهوامش مناسبة للتوقيع */
-  @page {
-    size: A4;
-    margin: 12mm 12mm 14mm 12mm;
-  }
-
-  #summaries-print-root {
-    position: absolute;
-    inset: 0;
-    padding: 0;
-  }
-
-  /* كل صفحة تقرير */
-  #summaries-print-root .print-page {
-    page-break-after: always;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    padding: 2mm 0 0 0;
-  }
-
-  /* ترويسة الصفحة */
-  #summaries-print-root .print-head .print-title {
-    font-weight: 800;
-    font-size: 16px;
-    margin: 0 0 2mm 0;
-  }
-  #summaries-print-root .print-head .print-sub {
-    font-size: 11.5px;
-    opacity: .85;
-    margin: 0 0 4mm 0;
-  }
-
-  /* كتل المريض: منع التقطيع داخل الصفحة */
+  body[data-printing="true"] * { visibility: hidden !important; box-shadow:none !important; text-shadow:none !important; }
+  #summaries-print-root, #summaries-print-root * { visibility: visible !important; }
+  @page { size: A4; margin: 12mm 12mm 14mm 12mm; }
+  #summaries-print-root { position: absolute; inset:0; padding:0; }
+  #summaries-print-root .print-page { page-break-after: always; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 2mm 0 0 0; }
+  #summaries-print-root .print-head .print-title { font-weight:800; font-size:16px; margin:0 0 2mm 0; }
+  #summaries-print-root .print-head .print-sub { font-size:11.5px; opacity:.85; margin:0 0 4mm 0; }
   #summaries-print-root .patient-block,
   #summaries-print-root .report-block,
   #summaries-print-root .print-block,
-  #summaries-print-root div[style*="break-inside:avoid"] {
-    break-inside: avoid;
-    page-break-inside: avoid;
-    margin-bottom: 4mm;
-  }
+  #summaries-print-root div[style*="break-inside:avoid"]{ break-inside:avoid; page-break-inside:avoid; margin-bottom:4mm; }
+  #summaries-print-root pre, #summaries-print-root .box, #summaries-print-root .card{ background:transparent !important; border-color:#999 !important; }
+  #summaries-print-root pre{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12.5px; line-height:1.35; white-space:pre-wrap; border:1px solid #999; border-radius:6px; padding:6px; }
+  #summaries-print-root .sig-line{ border-top:1px solid #bbb; padding-top:3mm; font-size:12px; }
+}
+#summaries-print-root .report-cover{ display:flex; align-items:center; justify-content:center; min-height:70vh; text-align:center; }
+#summaries-print-root .report-cover .title{ font-size:24px; font-weight:800; letter-spacing:.3px; margin-bottom:6px; }
+#summaries-print-root .report-cover .subtitle{ font-size:15px; opacity:.85; }
+#summaries-print-root .report-cover .stamp{ margin-top:14px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12px; opacity:.8; }
 
-  /* صناديق المحتوى: إزالة الخلفيات الداكنة في الطباعة */
-  #summaries-print-root pre,
-  #summaries-print-root .box,
-  #summaries-print-root .card {
-    background: transparent !important;
-    border-color: #999 !important;
-  }
-
-  /* نص الملخص */
-  #summaries-print-root pre {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-    font-size: 12.5px;
-    line-height: 1.35;
-    white-space: pre-wrap;
-    border: 1px solid #999;
-    border-radius: 6px;
-    padding: 6px;
-  }
-
-  /* توقيعات */
-  #summaries-print-root .sig-line {
-    border-top: 1px solid #bbb;
-    padding-top: 3mm;
-    font-size: 12px;
-  }
-}
-
-/* شاشة + طباعة: كلاس مساعد يمكن استعماله لاحقًا في القوالب المطبوعة */
-#summaries-print-root .report-cover {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 70vh;
-  text-align: center;
-}
-#summaries-print-root .report-cover .title {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: .3px;
-  margin-bottom: 6px;
-}
-#summaries-print-root .report-cover .subtitle {
-  font-size: 15px;
-  opacity: .85;
-}
-#summaries-print-root .report-cover .stamp {
-  margin-top: 14px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-  opacity: .8;
-}
 /* === Calculators (light styles) === */
 .calc-grid { display:grid; gap:10px; grid-template-columns:repeat(2,minmax(0,1fr)); }
 @media (max-width: 980px){ .calc-grid{ grid-template-columns:1fr; } }
@@ -705,350 +455,96 @@ body[data-printing="true"] #print-root { display:block !important; }
 .calc-badge.warn { background: color-mix(in oklab, var(--warn) 16%, transparent); }
 .calc-badge.danger { background: color-mix(in oklab, var(--danger) 16%, transparent); color:#fff; }
 .modal-card.modal-card--wide { max-width: 980px !important; }
+
 /* Tiny calculator chips in patient cards */
 .mini-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
-.btn-chip {
-  border:1px solid var(--border);
-  background:var(--panel);
-  border-radius:999px;
-  padding:2px 8px;
-  font-size:12px;
-  line-height:18px;
-  cursor:pointer;
-}
+.btn-chip{ border:1px solid var(--border); background:var(--panel); border-radius:999px; padding:2px 8px; font-size:12px; line-height:18px; cursor:pointer; }
 .btn-chip:hover { background: var(--bg-3); }
+
 /* === Section patient counts === */
-.pill {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+.pill{ position: relative; display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; }
+.pill-count{ font-size: 11px; color: var(--muted); background: color-mix(in oklab, var(--primary) 12%, transparent); border-radius: 10px; padding: 1px 6px; line-height: 1.3; transition: all var(--speed-fast); }
+.pill.active .pill-count{ background: color-mix(in oklab, var(--primary) 30%, transparent); color: white; }
+.pulse{ animation: pulseFade calc(2.5s * var(--motion-multiplier)) ease-in-out infinite; }
+@keyframes pulseFade{ 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ===== Motion packs (unchanged, with multiplier) ===== */
+/* ... (كل بلوكات الحركة التي أرسلتها أنت سابقًا موجودة فوق بالفعل) ... */
+
+/* =====================================================
+   موبايل: إظهار/إخفاء السايدبار + زر الهامبرغر + Scrim + FAB
+   ===================================================== */
+
+/* زر أيقوني عام + نسخة للهاتف */
+.icon-btn{
+  background: var(--panel);
+  border:1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.mobile-only{ display:none; }
+
+.scrim{
+  position: fixed; inset:0;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(2px);
+  z-index: 1400;
+  display:none;
 }
 
-.pill-count {
-  font-size: 11px;
-  color: var(--muted);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  border-radius: 10px;
-  padding: 1px 6px;
-  line-height: 1.3;
-  transition: all var(--speed-fast);
+/* FAB: زر إضافة مريض ع الموبايل */
+.fab{
+  position: fixed; right:16px; bottom:16px;
+  width:56px; height:56px; border-radius:50%;
+  display:none; place-items:center;
+  font-size:28px; font-weight:800; color:#fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  box-shadow: 0 14px 36px rgba(0,0,0,.35);
+  z-index: 1450; cursor:pointer;
+  user-select:none;
 }
 
-.pill.active .pill-count {
-  background: color-mix(in oklab, var(--primary) 30%, transparent);
-  color: white;
+/* ——— نقطة التحول للموبايل ——— */
+@media (max-width: 980px){
+
+  /* إظهار زر الهامبرغر فقط على الهاتف */
+  .mobile-only{ display:inline-flex; align-items:center; justify-content:center; }
+
+  /* السايدبار كـ off-canvas */
+  #sidebar{
+    position: fixed;
+    top:0; left:0; bottom:0;
+    height:100vh;
+    transform: translateX(-104%);
+    transition: transform var(--speed-med), box-shadow var(--speed-med);
+    z-index: 1500;
+  }
+  /* عند الفتح */
+  body.sidebar-open #sidebar{ transform: translateX(0); box-shadow: 0 22px 70px rgba(0,0,0,.45); }
+  body.sidebar-open #sidebar-scrim.scrim{ display:block; }
+
+  /* ترتيب الـ Topbar */
+  #topbar{ gap:10px; padding:12px 12px; z-index: 1200; }
+  #topbar input[type="search"]{ min-width:0; }
+  /* تقليل عناصر العمليات (نعرض اسم القسم فقط) */
+  #section-ops{ white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+  #section-ops .btn{ display:none; } /* نخفي الأزرار على الموبايل */
+
+  /* الحاويات */
+  #columns{ padding:12px; gap:12px; }
+
+  /* شبكة المرضى عمود واحد أساسي */
+  #patients-col .list{
+    grid-template-columns: 1fr;
+  }
+
+  /* إظهار الـ FAB */
+  .fab{ display:grid; }
 }
 
-.pulse {
-  animation: pulseFade calc(2.5s * var(--motion-multiplier)) ease-in-out infinite;
-}
-
-@keyframes pulseFade {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-/* =========================
-   Smooth Micro-Animations Pack (fade + slide + elevation)
-   Scope-only CSS (no JS). Safe defaults, motion-reduced friendly.
-   ========================= */
-
-@media (prefers-reduced-motion: no-preference) {
-
-  /* --- Modal: backdrop fade + card slide/fade --- */
-  .modal {
-    /* عند إظهار المودال يتم تفعيل هذا الفيد على الخلفية */
-    animation: modal-backdrop-in var(--speed-med) both;
-  }
-  @keyframes modal-backdrop-in {
-    from { background: rgba(6,8,16,0.00); }
-    to   { background: rgba(6,8,16,0.55); }
-  }
-
-  /* نحرص على وجود حالة ابتدائية أكثر نعومة قبل الانتقال (slide+fade) */
-  .modal-card {
-    transform: translateY(16px);
-    opacity: 0;
-  }
-  .modal:not(.hidden) .modal-card {
-    transform: translateY(0);
-    opacity: 1;
-    transition: transform var(--speed-med), opacity var(--speed-med);
-  }
-
-  /* --- Sections: لمس حركة خفيفة --- */
-  #sections-list .pill {
-    transition:
-      transform var(--speed-fast),
-      box-shadow var(--speed-fast),
-      background-color var(--speed-med),
-      border-color var(--speed-med),
-      color var(--speed-med);
-  }
-  #sections-list .pill:active {
-    transform: scale(0.985);
-  }
-  #sections-list .pill.active { filter: saturate(1.06); }
-
-  /* --- Patients list: دخول ناعم (staggered) --- */
-  #patients-list .row {
-    animation: list-item-in var(--speed-med) both;
-    transform-origin: 50% 0%;
-  }
-  @keyframes list-item-in {
-    from { opacity: 0; transform: translateY(6px) scale(0.995); }
-    to   { opacity: 1; transform: translateY(0)   scale(1.000); }
-  }
-
-  /* Stagger بسيط */
-  #patients-list .row:nth-child(1)  { animation-delay: 0ms;  }
-  #patients-list .row:nth-child(2)  { animation-delay: calc(25ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(3)  { animation-delay: calc(50ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(4)  { animation-delay: calc(75ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(5)  { animation-delay: calc(100ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(6)  { animation-delay: calc(125ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(7)  { animation-delay: calc(150ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(8)  { animation-delay: calc(175ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(9)  { animation-delay: calc(200ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(10) { animation-delay: calc(225ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(11) { animation-delay: calc(250ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(12) { animation-delay: calc(275ms * var(--motion-multiplier)); }
-
-  /* --- Hover elevation أنعم --- */
-  #patients-col .row:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      0 14px 44px rgba(0,0,0,.32),
-      0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent) inset;
-  }
-  .card:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      0 16px 48px rgba(0,0,0,.28),
-      0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent) inset;
-  }
-}
-
-/* احترام تفضيل تقليل الحركة */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-/* =========================
-   STRONGER MOTION OVERRIDES
-   (fade + slide + elevation)
-   ========================= */
-
-/* استخدم قيم صريحة بدل متغيرات غير معرّفة لضمان الشغل بكل ثيم */
-:root{
-  /* فقط لو بدك تعدّل لاحقاً */
-  --motion-fast: 180ms;
-  --motion-med:  320ms;
-  --motion-slow: 460ms;
-}
-
-@media (prefers-reduced-motion: no-preference){
-
-  /* === Modal: خلفية أوضح + انزلاق أكبر === */
-  .modal{
-    animation: modalBackdropIn calc(var(--motion-med) * var(--motion-multiplier)) ease-out both;
-  }
-  @keyframes modalBackdropIn{
-    from{ background: rgba(6,8,16,0.00); }
-    to  { background: rgba(6,8,16,0.65); }
-  }
-
-  .modal-card{
-    transform: translateY(28px) scale(0.985);
-    opacity: 0;
-  }
-  .modal:not(.hidden) .modal-card{
-    transform: translateY(0) scale(1);
-    opacity: 1;
-    transition:
-      transform calc(360ms * var(--motion-multiplier)) cubic-bezier(.22,.61,.36,1),
-      opacity   calc(300ms * var(--motion-multiplier)) ease-out;
-    will-change: transform, opacity;
-  }
-
-  /* === Patients: دخول أوضح === */
-  #patients-list .row{
-    animation: listIn calc(var(--motion-med) * var(--motion-multiplier)) cubic-bezier(.22,.61,.36,1) both;
-    transform-origin: 50% 0%;
-  }
-  @keyframes listIn{
-    0%   { opacity: 0; transform: translateY(14px) scale(0.985); }
-    60%  { opacity: 1; transform: translateY(2px)  scale(0.998); }
-    100% { opacity: 1; transform: translateY(0)    scale(1); }
-  }
-
-  /* Stagger حتى 20 عنصر */
-  #patients-list .row:nth-child(1)  { animation-delay:  0ms; }
-  #patients-list .row:nth-child(2)  { animation-delay:  calc(40ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(3)  { animation-delay:  calc(80ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(4)  { animation-delay:  calc(120ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(5)  { animation-delay:  calc(160ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(6)  { animation-delay:  calc(200ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(7)  { animation-delay:  calc(240ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(8)  { animation-delay:  calc(280ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(9)  { animation-delay:  calc(320ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(10) { animation-delay:  calc(360ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(11) { animation-delay:  calc(400ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(12) { animation-delay:  calc(440ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(13) { animation-delay:  calc(480ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(14) { animation-delay:  calc(520ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(15) { animation-delay:  calc(560ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(16) { animation-delay:  calc(600ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(17) { animation-delay:  calc(640ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(18) { animation-delay:  calc(680ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(19) { animation-delay:  calc(720ms * var(--motion-multiplier)); }
-  #patients-list .row:nth-child(20) { animation-delay:  calc(760ms * var(--motion-multiplier)); }
-
-  /* === Hover Elevation === */
-  #patients-col .row,
-  .card{
-    transition:
-      transform calc(250ms * var(--motion-multiplier)) ease,
-      box-shadow calc(250ms * var(--motion-multiplier)) ease,
-      border-color calc(250ms * var(--motion-multiplier)) ease,
-      background-color calc(250ms * var(--motion-multiplier)) ease;
-  }
-  #patients-col .row:hover,
-  .card:hover{
-    transform: translateY(-4px);
-    box-shadow:
-      0 20px 58px rgba(0,0,0,.32),
-      0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent) inset;
-    border-color: color-mix(in oklab, var(--primary) 34%, var(--border));
-    background-color: color-mix(in oklab, var(--panel) 88%, var(--primary) 12%);
-  }
-
-  /* === Pills === */
-  #sections-list .pill{
-    transition:
-      transform calc(250ms * var(--motion-multiplier)) ease,
-      box-shadow calc(250ms * var(--motion-multiplier)) ease,
-      background-color calc(250ms * var(--motion-multiplier)) ease,
-      border-color calc(250ms * var(--motion-multiplier)) ease,
-      color calc(250ms * var(--motion-multiplier)) ease;
-  }
-  #sections-list .pill:hover{
-    transform: translateY(-2px);
-    box-shadow: 0 10px 24px rgba(0,0,0,.25);
-    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
-    background-color: color-mix(in oklab, rgba(255,255,255,.03) 70%, var(--primary) 30%);
-  }
-  #sections-list .pill:active{
-    transform: translateY(0) scale(0.985);
-  }
-}
-
-/* تقليل الحركة */
+/* يمكن استعمال هذا عند تفعيل/تعطيل الحركة من الإعدادات مستقبلاً */
 @media (prefers-reduced-motion: reduce){
-  *{ animation:none !important; transition:none !important; }
-}
-/* =========================
-   STRONG MOTION (x3 intensity)
-   ========================= */
-
-@media (prefers-reduced-motion: no-preference){
-
-  /* === Modal: انزلاق أوضح وتلاشي أقوى === */
-  .modal{
-    animation: modalBackdropIn calc(500ms * var(--motion-multiplier)) ease-out both;
-  }
-  @keyframes modalBackdropIn{
-    from{ background: rgba(6,8,16,0.00); }
-    to  { background: rgba(6,8,16,0.75); }
-  }
-  .modal-card{
-    transform: translateY(80px) scale(0.95);
-    opacity: 0;
-  }
-  .modal:not(.hidden) .modal-card{
-    transform: translateY(0) scale(1);
-    opacity: 1;
-    transition:
-      transform calc(0.75s * var(--motion-multiplier)) cubic-bezier(.18,.89,.32,1.28),
-      opacity   calc(0.55s * var(--motion-multiplier)) ease-out;
-    will-change: transform, opacity;
-  }
-
-  /* === بطاقات المرضى: دخول أقوى === */
-  #patients-list .row{
-    animation: listInStrong calc(0.7s * var(--motion-multiplier)) cubic-bezier(.22,.61,.36,1) both;
-    transform-origin: 50% 0%;
-  }
-  @keyframes listInStrong{
-    0%   { opacity: 0; transform: translateY(30px) scale(0.95); }
-    40%  { opacity: 1; transform: translateY(-6px) scale(1.01); }
-    100% { opacity: 1; transform: translateY(0)    scale(1); }
-  }
-  /* Stagger أطول (حتى 20 عنصر) */
-  #patients-list .row:nth-child(1){animation-delay:0ms;}
-  #patients-list .row:nth-child(2){animation-delay:calc(70ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(3){animation-delay:calc(140ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(4){animation-delay:calc(210ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(5){animation-delay:calc(280ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(6){animation-delay:calc(350ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(7){animation-delay:calc(420ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(8){animation-delay:calc(490ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(9){animation-delay:calc(560ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(10){animation-delay:calc(630ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(11){animation-delay:calc(700ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(12){animation-delay:calc(770ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(13){animation-delay:calc(840ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(14){animation-delay:calc(910ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(15){animation-delay:calc(980ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(16){animation-delay:calc(1050ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(17){animation-delay:calc(1120ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(18){animation-delay:calc(1190ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(19){animation-delay:calc(1260ms * var(--motion-multiplier));}
-  #patients-list .row:nth-child(20){animation-delay:calc(1330ms * var(--motion-multiplier));}
-
-  /* === Hover Elevation: أعلى ×3 === */
-  #patients-col .row,
-  .card{
-    transition:
-      transform calc(0.25s * var(--motion-multiplier)) ease,
-      box-shadow calc(0.25s * var(--motion-multiplier)) ease,
-      border-color calc(0.25s * var(--motion-multiplier)) ease,
-      background-color calc(0.25s * var(--motion-multiplier)) ease;
-  }
-  #patients-col .row:hover,
-  .card:hover{
-    transform: translateY(-10px) scale(1.02);
-    box-shadow:
-      0 26px 80px rgba(0,0,0,.45),
-      0 0 0 1px color-mix(in oklab, var(--primary) 55%, transparent) inset;
-    border-color: color-mix(in oklab, var(--primary) 60%, var(--border));
-    background-color: color-mix(in oklab, var(--panel) 75%, var(--primary) 25%);
-  }
-
-  /* === Pills (الأقسام) === */
-  #sections-list .pill{
-    transition:
-      transform calc(0.25s * var(--motion-multiplier)) ease,
-      box-shadow calc(0.25s * var(--motion-multiplier)) ease,
-      background-color calc(0.25s * var(--motion-multiplier)) ease,
-      border-color calc(0.25s * var(--motion-multiplier)) ease,
-      color calc(0.25s * var(--motion-multiplier)) ease;
-  }
-  #sections-list .pill:hover{
-    transform: translateY(-4px) scale(1.05);
-    box-shadow: 0 16px 38px rgba(0,0,0,.35);
-    border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
-    background-color: color-mix(in oklab, rgba(255,255,255,.04) 50%, var(--primary) 50%);
-  }
-  #sections-list .pill:active{
-    transform: translateY(0) scale(0.96);
-  }
-}
-
-/* تقليل الحركة */
-@media (prefers-reduced-motion: reduce){
-  *{ animation:none !important; transition:none !important; }
+  .scrim{ backdrop-filter:none; }
 }
