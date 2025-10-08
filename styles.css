@@ -685,3 +685,5 @@ body[data-printing="true"] #print-root { display:block !important; }
   font-size: 12px;
   opacity: .8;
 }
+#patient-modal #dashboard-panel { display:block; }
+#patient-modal #dashboard-panel .card { width: 100%; }
