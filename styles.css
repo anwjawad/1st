@@ -471,3 +471,105 @@ body[data-printing="true"] #print-root { display:block !important; }
 /* ===== Utilities ===== */
 .prewrap{ white-space: pre-wrap; }
 .hidden{ display:none !important; }
+/* styles.css */
+/* ============ BASE APP STYLES ============ */
+/* (الملف الأصلي كما هو، الإضافات في الأسفل) */
+
+/* --- existing global styles remain here --- */
+
+/* ============ ADDITIONS FOR SUMMARIES ============ */
+
+/* Modal for summaries */
+#summaries-modal .modal-card {
+  max-width: 1000px;
+  width: calc(100% - 24px);
+}
+
+#summaries-modal .modal-body {
+  overflow-y: auto;
+  max-height: 75vh;
+}
+
+/* Search + toolbar */
+#summaries-modal input#summaries-search {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+#summaries-modal label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+#summaries-root .card {
+  background: color-mix(in oklab, var(--bg-2) 92%, #000 8%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  transition: background 0.2s;
+}
+
+#summaries-root .card:hover {
+  background: color-mix(in oklab, var(--bg-2) 86%, #000 14%);
+}
+
+#summaries-root pre {
+  background: color-mix(in oklab, var(--bg-1) 96%, #000 4%);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  overflow-x: auto;
+}
+
+/* Buttons inside summaries */
+#summaries-root .btn {
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+/* Section grouping */
+#summaries-root > .card > .card-head {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+}
+
+/* Muted timestamp */
+#summaries-refreshed {
+  font-family: monospace;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* ============ PRINT STYLING FOR SUMMARIES ============ */
+@media print {
+  body[data-printing="true"] * {
+    visibility: hidden !important;
+  }
+  #summaries-print-root,
+  #summaries-print-root * {
+    visibility: visible !important;
+  }
+  #summaries-print-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 10mm;
+  }
+  #summaries-print-root .print-page {
+    page-break-after: always;
+  }
+  #summaries-print-root pre {
+    background: transparent !important;
+    border: none !important;
+  }
+}
+
