@@ -836,3 +836,134 @@ body[data-printing="true"] #print-root { display:block !important; }
     transition: none !important;
   }
 }
+/* =========================
+   STRONGER MOTION OVERRIDES
+   (fade + slide + elevation)
+   ========================= */
+
+/* استخدم قيم صريحة بدل متغيرات غير معرّفة لضمان الشغل بكل ثيم */
+:root{
+  /* فقط لو بدك تعدّل لاحقاً */
+  --motion-fast: 180ms;
+  --motion-med:  320ms;
+  --motion-slow: 460ms;
+}
+
+@media (prefers-reduced-motion: no-preference){
+
+  /* === Modal: خلفية أوضح + انزلاق أكبر وبطيء شوي مع cubic-bezier أنعم === */
+  .modal{
+    animation: modalBackdropIn var(--motion-med) ease-out both;
+  }
+  @keyframes modalBackdropIn{
+    from{ background: rgba(6,8,16,0.00); }
+    to  { background: rgba(6,8,16,0.65); } /* أقوى من 0.55 */
+  }
+
+  /* البداية تكون أوطى وأصغر بشوي لنعطي إحساس دخول واضح */
+  .modal-card{
+    transform: translateY(28px) scale(0.985);
+    opacity: 0;
+  }
+  .modal:not(.hidden) .modal-card{
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    transition:
+      transform 360ms cubic-bezier(.22,.61,.36,1),
+      opacity   300ms ease-out;
+    will-change: transform, opacity;
+  }
+
+  /* === Sections/List: دخول أوضح للبطاقات مع Stagger أطول === */
+  #patients-list .row{
+    animation: listIn var( --motion-med ) cubic-bezier(.22,.61,.36,1) both;
+    transform-origin: 50% 0%;
+  }
+  @keyframes listIn{
+    0%   { opacity: 0; transform: translateY(14px) scale(0.985); }
+    60%  { opacity: 1; transform: translateY(2px)  scale(0.998); }
+    100% { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+
+  /* Stagger حتى 20 عنصر */
+  #patients-list .row:nth-child(1)  { animation-delay:  0ms; }
+  #patients-list .row:nth-child(2)  { animation-delay:  40ms; }
+  #patients-list .row:nth-child(3)  { animation-delay:  80ms; }
+  #patients-list .row:nth-child(4)  { animation-delay: 120ms; }
+  #patients-list .row:nth-child(5)  { animation-delay: 160ms; }
+  #patients-list .row:nth-child(6)  { animation-delay: 200ms; }
+  #patients-list .row:nth-child(7)  { animation-delay: 240ms; }
+  #patients-list .row:nth-child(8)  { animation-delay: 280ms; }
+  #patients-list .row:nth-child(9)  { animation-delay: 320ms; }
+  #patients-list .row:nth-child(10) { animation-delay: 360ms; }
+  #patients-list .row:nth-child(11) { animation-delay: 400ms; }
+  #patients-list .row:nth-child(12) { animation-delay: 440ms; }
+  #patients-list .row:nth-child(13) { animation-delay: 480ms; }
+  #patients-list .row:nth-child(14) { animation-delay: 520ms; }
+  #patients-list .row:nth-child(15) { animation-delay: 560ms; }
+  #patients-list .row:nth-child(16) { animation-delay: 600ms; }
+  #patients-list .row:nth-child(17) { animation-delay: 640ms; }
+  #patients-list .row:nth-child(18) { animation-delay: 680ms; }
+  #patients-list .row:nth-child(19) { animation-delay: 720ms; }
+  #patients-list .row:nth-child(20) { animation-delay: 760ms; }
+
+  /* === Hover Elevation: أعلى، ظل أعمق، وتينت خفيف للـ background === */
+
+  /* بطاقات المرضى */
+  #patients-col .row{
+    transition:
+      transform var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      background-color var(--motion-fast) ease;
+  }
+  #patients-col .row:hover{
+    transform: translateY(-4px);
+    box-shadow:
+      0 18px 52px rgba(0,0,0,.34),
+      0 0 0 1px color-mix(in oklab, var(--primary) 36%, transparent) inset;
+    border-color: color-mix(in oklab, var(--primary) 42%, var(--border));
+    background-color: color-mix(in oklab, var(--panel) 85%, var(--primary) 15%);
+  }
+
+  /* البطاقات العامة .card */
+  .card{
+    transition:
+      transform var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      background-color var(--motion-fast) ease;
+  }
+  .card:hover{
+    transform: translateY(-4px);
+    box-shadow:
+      0 20px 58px rgba(0,0,0,.32),
+      0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent) inset;
+    border-color: color-mix(in oklab, var(--primary) 34%, var(--border));
+    background-color: color-mix(in oklab, var(--panel) 88%, var(--primary) 12%);
+  }
+
+  /* === Pills (أزرار الأقسام): إحساس أقوى عند الهوفر والنقر === */
+  #sections-list .pill{
+    transition:
+      transform var(--motion-fast),
+      box-shadow var(--motion-fast),
+      background-color var(--motion-fast),
+      border-color var(--motion-fast),
+      color var(--motion-fast);
+  }
+  #sections-list .pill:hover{
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0,0,0,.25);
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+    background-color: color-mix(in oklab, rgba(255,255,255,.03) 70%, var(--primary) 30%);
+  }
+  #sections-list .pill:active{
+    transform: translateY(0) scale(0.985);
+  }
+}
+
+/* تقليل الحركة */
+@media (prefers-reduced-motion: reduce){
+  *{ animation:none !important; transition:none !important; }
+}
