@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" href="data:,">
   <style>
-    /* تعديل خاص لشبكة المرضى */
     #patients-col {
       display: flex;
       flex-direction: column;
@@ -56,7 +55,6 @@
 
     <!-- Main -->
     <main id="main">
-      <!-- Topbar -->
       <div id="topbar">
         <div class="left">
           <div class="title">Palliative Rounds</div>
@@ -67,9 +65,7 @@
         </div>
       </div>
 
-      <!-- Content grid -->
       <div id="content-grid">
-        <!-- Patients column -->
         <section id="patients-col">
           <div class="card">
             <div class="card-head">
@@ -81,7 +77,6 @@
               </div>
             </div>
 
-            <!-- Bulk actions toolbar (على القائمة الرئيسية) -->
             <div id="patients-bulkbar" class="actions-row" style="margin-bottom:8px; flex-wrap:wrap">
               <button id="plist-select-all" class="btn">Select All</button>
               <button id="plist-clear" class="btn btn-ghost">Clear</button>
@@ -93,19 +88,15 @@
 
             <div id="patients-list" class="list"></div>
           </div>
-
-          <!-- Dashboard column not used (dashboard is in modal) -->
           <section id="dashboard-col" style="display:none;"></section>
         </section>
       </div>
     </main>
-
   </div>
 
-  <!-- Toast root -->
   <div id="toast-root"></div>
 
-  <!-- Patient modal -->
+  <!-- ===== PATIENT MODAL (single-card unified) ===== -->
   <div id="patient-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card" style="max-width:1160px">
       <div class="modal-header">
@@ -118,28 +109,23 @@
       </div>
 
       <div class="modal-body modal-body-pad">
-        <div id="dashboard-panel" class="grid grid-2" data-empty="true">
-          <!-- Bio -->
+        <div id="dashboard-panel" data-empty="true">
           <div class="card">
             <div class="card-head">
               <div id="dashboard-title" class="card-title">Dashboard — (select a patient)</div>
             </div>
-            <div class="card-body">
-              <div id="bio-grid" class="grid grid-2"></div>
-            </div>
-          </div>
 
-          <!-- HPI + Notes + Symptoms -->
-          <div class="card">
-            <div class="card-head">
-              <div class="tabs small">
-                <button class="tab active">Narrative</button>
-              </div>
-            </div>
             <div class="card-body">
-              <!-- HPI -->
+              <!-- Bio -->
               <div class="section-block">
-                <div class="block-head"><div class="block-title">HPI</div></div>
+                <div class="block-head"><div class="block-title">Bio</div></div>
+                <div id="bio-grid" class="grid grid-2"></div>
+              </div>
+
+              <!-- Narrative (HPI + Notes) -->
+              <div class="section-block">
+                <div class="block-head"><div class="block-title">Narrative</div></div>
+
                 <div class="grid grid-2">
                   <label class="field">
                     <span class="label">Cause of admission</span>
@@ -158,29 +144,29 @@
                     <textarea id="hpi-current" rows="2" placeholder="Current HPI…"></textarea>
                   </label>
                 </div>
-              </div>
 
-              <div class="section-block">
-                <div class="grid grid-2">
+                <div class="section-block">
+                  <div class="grid grid-2">
+                    <label class="field">
+                      <span class="label">Patient Assessment</span>
+                      <textarea id="patient-assessment" rows="3" placeholder="Assessment…"></textarea>
+                    </label>
+                    <label class="field">
+                      <span class="label">Medication List</span>
+                      <textarea id="medication-list" rows="3" placeholder="Medication list…"></textarea>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="section-block">
                   <label class="field">
-                    <span class="label">Patient Assessment</span>
-                    <textarea id="patient-assessment" rows="3" placeholder="Assessment…"></textarea>
-                  </label>
-                  <label class="field">
-                    <span class="label">Medication List</span>
-                    <textarea id="medication-list" rows="3" placeholder="Medication list…"></textarea>
+                    <span class="label">Latest Notes</span>
+                    <textarea id="latest-notes" rows="3" placeholder="Latest notes…"></textarea>
                   </label>
                 </div>
               </div>
 
-              <div class="section-block">
-                <label class="field">
-                  <span class="label">Latest Notes</span>
-                  <textarea id="latest-notes" rows="3" placeholder="Latest notes…"></textarea>
-                </label>
-              </div>
-
-              <!-- Unified Symptoms (ESAS+CTCAE tags) -->
+              <!-- Unified Symptoms -->
               <div class="section-block">
                 <div class="block-head">
                   <div class="block-title">Symptoms</div>
@@ -226,7 +212,6 @@
                 <div id="labs-grid" class="grid grid-2"></div>
                 <div id="labs-summary" class="chips" style="margin-top:8px"></div>
               </div>
-
             </div>
           </div>
         </div>
@@ -237,8 +222,9 @@
       </div>
     </div>
   </div>
+  <!-- ===== END MODAL ===== -->
 
-  <!-- Import modal -->
+  <!-- باقي المودالات كما هي (import/export/settings ...) -->
   <div id="import-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-header">
@@ -256,7 +242,6 @@
     </div>
   </div>
 
-  <!-- Export modal -->
   <div id="export-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-header">
@@ -275,14 +260,11 @@
 
         <div class="small" style="margin-bottom:6px">Move selected to section:</div>
         <div class="grid" style="grid-template-columns:1fr 2fr; gap:8px; margin-bottom:10px">
-          <select id="export-move-target" style="padding:8px; border:1px solid var(--border); background:var(--panel); color:var(--text)">
-          </select>
-          <input id="export-search" type="search" placeholder="Search…" style="padding:8px; border:1px solid var(--border); background:var(--panel); color:var(--text)"/>
+          <select id="export-move-target" style="padding:8px; border:1px solid var(--border); background:var(--panel); color:var(--text)"></select>
+          <input id="export-search" type="search" placeholder="Search…" style="padding:8px; border:1px solid var(--border); background:var(--panel); color:var(--text)" />
         </div>
 
-        <div id="export-list" class="scroll" style="max-height:60vh; border:1px dashed var(--border); border-radius:12px; padding:8px">
-          <!-- JS will render grouped by section with checkboxes -->
-        </div>
+        <div id="export-list" class="scroll" style="max-height:60vh; border:1px dashed var(--border); border-radius:12px; padding:8px"></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" data-close-modal="export-modal">Close</button>
@@ -291,7 +273,6 @@
     </div>
   </div>
 
-  <!-- Settings modal -->
   <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-header">
@@ -321,21 +302,6 @@
     </div>
   </div>
 
-  <!-- Hidden print root -->
-  <div id="print-root" style="display:none"></div>
-  <script type="module" src="./js/themes.js"></script>
-  <script type="module" src="./js/pdf-import.js"></script>
-
-  <!-- Entry point: App.start + Summaries -->
-  <script type="module">
-    import { App } from './js/app.js';
-    import { Summaries } from './js/summaries.js';
-    (async () => {
-      await App.start();
-      Summaries.init(App.bus, App.state);
-      const btn = document.getElementById('open-summaries');
-      if (btn) btn.addEventListener('click', () => Summaries.open());
-    })();
-  </script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
