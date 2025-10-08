@@ -49,6 +49,50 @@ function applyMotionSpeedFromStorage(){
   document.documentElement.style.setProperty('--motion-multiplier', v);
 }
 
+// ===== Preferences (from ThemeManager / localStorage.pr.settings) =====
+function getPreferences(){
+  // ThemeManager معرف عالميًا من themes.js
+  const s = (window.ThemeManager && typeof window.ThemeManager.getSettings === 'function')
+    ? window.ThemeManager.getSettings()
+    : { cardDensity:'expanded', sectionOrder:[], modalColor:'auto' };
+  return s || { cardDensity:'expanded', sectionOrder:[], modalColor:'auto' };
+}
+function applyDensityPref(s){
+  try{
+    const dens = s.cardDensity === 'compact' ? 'compact' : 'expanded';
+    document.body.setAttribute('data-density', dens);
+  }catch{ /* noop */ }
+}
+function applySectionOrderPref(s){
+  if (!Array.isArray(s.sectionOrder) || !s.sectionOrder.length) return;
+  const existing = Array.isArray(State.sections) ? State.sections.slice() : ['Default'];
+  const orderSet = new Set(s.sectionOrder);
+  const ordered = s.sectionOrder.filter(x => existing.includes(x));
+  const extras  = existing.filter(x => !orderSet.has(x));
+  State.sections = [...ordered, ...extras];
+  if (!State.sections.includes(State.activeSection)) {
+    State.activeSection = State.sections[0] || 'Default';
+  }
+}
+function applyPreferencesToStateAndUI(){
+  const s = getPreferences();
+  applyDensityPref(s);
+  applySectionOrderPref(s);
+  // بعد تعديل ترتيب الأقسام لازم نعيد رسم الواجهة ذات الصلة
+  renderSections();
+  renderPatientsList();
+  populateMoveTargets();
+}
+// استمع لحفظ التفضيلات من themes.js
+window.addEventListener('pr:preferences-save', (ev)=>{
+  const s = ev?.detail || getPreferences();
+  applyDensityPref(s);
+  applySectionOrderPref(s);
+  renderSections();
+  renderPatientsList();
+  populateMoveTargets();
+});
+
 // Labs helpers (unchanged)
 const LAB_REF = {
   'WBC':[4.0,11.0],'HGB':[12.0,16.0],'PLT':[150,450],'ANC':[1.5,8.0],'CRP':[0,5],
@@ -183,7 +227,7 @@ function renderPatientsList(){
     const name=document.createElement('div'); name.className='row-title linkish'; name.textContent=p['Patient Name']||'(Unnamed)';
     headLeft.appendChild(cb); headLeft.appendChild(name);
 
-    const badge=document.createElement('span'); badge.className='status ' + (p['Done']?'done':'open'); badge.textContent=p['Done']?'Done':'Open';
+    const badge=document.createElement('span'); badge.className = 'status ' + (p['Done']?'done':'open'); badge.textContent=p['Done']?'Done':'Open';
     header.appendChild(headLeft); header.appendChild(badge);
 
     const meta=document.createElement('div'); meta.className='row-sub';
@@ -404,6 +448,12 @@ async function loadAllFromSheets(){
     State.labs     = Array.isArray(data.labs)     ? data.labs     : [];
     if (!data.sections?.length) await Sheets.ensureSection('Default');
     if (!State.sections.includes(State.activeSection)) State.activeSection = State.sections[0] || 'Default';
+
+    // === Apply preferences after pulling sections from Sheets ===
+    const prefs = getPreferences();
+    applyDensityPref(prefs);
+    applySectionOrderPref(prefs);
+
     renderSections();
     renderPatientsList();
     Dashboard.clearEmpty?.(true);
@@ -654,7 +704,7 @@ function bindUI(){
       renderPatientsList(); Dashboard.clearEmpty?.(true); closePatientModal();
       toast('Patient deleted.','success');
       refreshSections(); // NEW
-    }catch{ toast('Failed to delete patient.','danger'); }
+    }catch{ toast('Failed to delete patient.', 'danger'); }
   });
 
   // Mark done
@@ -1070,6 +1120,10 @@ export const App = {
   async start(){
     // Apply motion multiplier before any UI renders/animations
     applyMotionSpeedFromStorage();
+
+    // Apply density early (before rendering) for smoother first paint
+    try { applyDensityPref(getPreferences()); } catch {}
+
     bindUI();
     Patients.init?.(Bus, State);
     ESAS.init?.(Bus, State);
@@ -1081,6 +1135,7 @@ export const App = {
     Symptoms.init?.(Bus, State);
     Summaries.init(Bus, State);
     Calculators.init?.(Bus, State);
+
     await loadAllFromSheets();
     State.ready=true;
   },
