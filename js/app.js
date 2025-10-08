@@ -15,6 +15,8 @@ import { UI } from './ui.js';
 import { Utils } from './utils.js';
 import { AIModule } from './ai.js';
 import { Symptoms } from './symptoms.js';
+import { Summaries } from './summaries.js';
+
 
 // ===== Defaults on first run =====
 const DEFAULTS = {
@@ -361,7 +363,7 @@ async function loadAllFromSheets(){
     State.loading=false;
   }
 }
-import { Summaries } from './summaries.js'; // فوق بداية الملف app.js لو مش موجود
+
 // ===== Bind UI =====
 function bindUI(){
   UI.init?.(Bus);
@@ -424,10 +426,6 @@ function bindUI(){
       toast('Section deleted and patients moved to “Default”.','success');
     }catch{ toast('Failed to delete section.','danger'); }
   });
-  
-q('#open-summaries')?.addEventListener('click', () => {
-  Summaries.open();
-});
   
   // New patient
   q('#btn-new-patient')?.addEventListener('click', async ()=>{
@@ -519,7 +517,12 @@ q('#open-summaries')?.addEventListener('click', () => {
       if (id==='patient-modal') document.documentElement.style.overflow='';
     });
   });
-
+  
+// زر All Summaries
+q('#open-summaries')?.addEventListener('click', () => {
+  Summaries.open();
+});
+  
   // Settings open via delegation
   document.addEventListener('click', (e)=>{
     const t=e.target.closest('#open-settings'); if(!t) return;
@@ -962,6 +965,7 @@ export const App = {
     Importer.init?.(Bus, State);
     AIModule.init?.(Bus, State);
     Symptoms.init?.(Bus, State);
+    Summaries.init(Bus, State);
     await loadAllFromSheets();
     State.ready=true;
   },
