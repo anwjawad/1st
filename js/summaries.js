@@ -1,17 +1,12 @@
 // js/summaries.js
 // قائمة ملخصات المرضى (كل الأقسام) — محلي بالكامل بدون أي API خارجي.
 // - يستخدم AIModule.localHeuristicSummary لتوليد نص ملخّص من bundle (patient+esas+ctcae+labs)
-// - واجهة: مودال/صفحة فيها تجميع حسب القسم + بحث + نسخ + عرض مختصر/مفصّل + طباعة
+// - واجهة: مودال/صفحة فيها تجميع حسب القسم + بحث + نسخ + عرض مختصر/مفصّل + طباعة بسيطة + تقرير طبي احترافي
 // - كاش: يعيد توليد ملخّص مريض فقط إذا تغيّر توقيت Updated At (أو حقول أساسية).
 //
-// المتطلبات في index.html (سنضيفها لاحقًا):
-// <button id="open-summaries">All Summaries</button>
-// <div id="summaries-modal" class="modal hidden">… (سيُبنى تلقائيًا إن لم يوجد)
-// أو يمكن عرضه كلوحة مستقلة بدلاً من مودال عبر renderStandalone().
-//
 // نقاط الدمج:
-// - في app.js: Summaries.init(Bus, State) + زر لفتح Summaries.open()
-// - لا نغيّر أي منطق قائم؛ كل التوليد يتم من State الحالي
+// - في index.html: استيراد summaries.js موجود مسبقًا وزر open-summaries موصول.
+// - لا نغيّر أي منطق قائم؛ كل التوليد يتم من State الحالي.
 
 import { Utils } from './utils.js';
 import { AIModule } from './ai.js';
@@ -35,13 +30,26 @@ function ensureModalScaffold() {
     <div class="modal-card" role="dialog" aria-modal="true" style="max-width: 1000px; width: calc(100% - 24px);">
       <div class="modal-header">
         <div class="card-title"><span class="mi md">description</span>&nbsp; All Patient Summaries</div>
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
           <input id="summaries-search" class="pinput" type="text" placeholder="Search name / code / diagnosis / room…" style="min-width:260px" />
           <label class="checkbox small" title="Show compact preview">
             <input id="summaries-compact" type="checkbox" checked />
             <span>Compact</span>
           </label>
-          <button id="summaries-print" class="btn btn-ghost" type="button" title="Print all summaries"><span class="mi md">print</span>&nbsp;Print</button>
+          <div style="width:8px"></div>
+          <button id="summaries-collapse-all" class="btn btn-ghost" type="button" title="Collapse all">
+            <span class="mi md">unfold_less</span>&nbsp;Collapse All
+          </button>
+          <button id="summaries-expand-all" class="btn btn-ghost" type="button" title="Expand all">
+            <span class="mi md">unfold_more</span>&nbsp;Expand All
+          </button>
+          <div style="width:8px"></div>
+          <button id="summaries-print" class="btn btn-ghost" type="button" title="Quick print">
+            <span class="mi md">print</span>&nbsp;Print
+          </button>
+          <button id="summaries-medical-report" class="btn btn-primary" type="button" title="Medical report PDF">
+            <span class="mi md">picture_as_pdf</span>&nbsp;Medical Report PDF
+          </button>
           <button class="icon-btn" data-close-modal="summaries-modal" aria-label="Close"><span class="mi md">close</span></button>
         </div>
       </div>
@@ -66,12 +74,10 @@ const Cache = (() => {
   const map = new Map(); // code -> {version, text, shortText, at}
 
   function versionFor(p, e, c, l) {
-    // نعتمد على Updated At الأساسية إن توفرت؛ وإلاّ نبني بصمة مبسطة
     const pv = p?.['Updated At'] || '';
     const ev = e?.['Updated At'] || '';
     const cv = c?.['Updated At'] || '';
     const lv = l?.['Updated At'] || '';
-    // بعض الحقول الأساسية قد تتغير بدون Updated At (احتياط)
     const core =
       (p?.['Patient Name']||'') + '|' +
       (p?.['Diagnosis']||'') + '|' +
@@ -117,7 +123,7 @@ function bundleFor(code) {
 /* =========================
    Summary generation
    ========================= */
-function toShort(text, maxLines = 6) {
+function toShort(text, maxLines = 7) {
   if (!text) return '';
   const lines = String(text).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   if (lines.length <= maxLines) return lines.join('\n');
@@ -230,12 +236,11 @@ function makePatientCard(p, compact=true) {
     ? `<span class="mi md">expand_more</span>&nbsp;Expand`
     : `<span class="mi md">expand_less</span>&nbsp;Collapse`;
   btnToggle.addEventListener('click', ()=>{
-    const nowCompact = btnToggle.innerText.trim().startsWith('Expand') ? false : true;
-    // إعادة العرض السريع
-    pre.textContent = nowCompact ? (ensureSummary(code).shortText || '') : (ensureSummary(code).text || '');
-    btnToggle.innerHTML = nowCompact
-      ? `<span class="mi md">expand_more</span>&nbsp;Expand`
-      : `<span class="mi md">expand_less</span>&nbsp;Collapse`;
+    const expanded = btnToggle.innerText.trim().startsWith('Collapse') ? false : true;
+    pre.textContent = expanded ? (ensureSummary(code).text || '') : (ensureSummary(code).shortText || '');
+    btnToggle.innerHTML = expanded
+      ? `<span class="mi md">expand_less</span>&nbsp;Collapse`
+      : `<span class="mi md">expand_more</span>&nbsp;Expand`;
   });
 
   row.appendChild(btnCopy);
@@ -307,11 +312,6 @@ function renderListRoot(root, searchTerm, compact) {
     list.forEach(p => body.appendChild(makePatientCard(p, compact)));
 
     btnCollapse.addEventListener('click', ()=>{
-      qsa('.card pre', body).forEach(pre=>{
-        // عرض مختصر لكل البطاقات
-        const codeEl = pre.closest('.card')?.querySelector('.mono.small.muted'); // غير مضمون
-      });
-      // طريقة بسيطة: أعد البناء مختصر لهذا القسم
       body.innerHTML = '';
       list.forEach(p => body.appendChild(makePatientCard(p, true)));
     });
@@ -329,6 +329,114 @@ function renderListRoot(root, searchTerm, compact) {
 }
 
 /* =========================
+   Printing (Quick + Medical Report)
+   ========================= */
+
+function buildQuickPrintHTML(searchTerm = '', compact = true) {
+  const pats = filterPatients(searchTerm);
+  const bySec = groupPatientsBySection(pats);
+  const sections = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
+
+  const pages = sections.map(sec => {
+    const list = bySec.get(sec) || [];
+    const rows = list.map(p => {
+      const name = p['Patient Name'] || p['Patient Code'] || '(Unnamed)';
+      const code = p['Patient Code'] || '';
+      const upd  = p['Updated At'] ? Utils.formatDateTime(p['Updated At']) : '—';
+      const { text, shortText } = ensureSummary(code);
+      const body = compact ? shortText : text;
+      const esc = s => String(s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+      return `
+        <div style="break-inside:avoid; margin:0 0 10px 0; padding:10px; border:1px solid var(--border); border-radius:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="font-weight:700;">${esc(name)}</div>
+            <div class="mono small muted">${esc(code)} • Updated ${esc(upd)}</div>
+          </div>
+          <pre class="mono small" style="white-space:pre-wrap; line-height:1.3;">${esc(body)}</pre>
+        </div>`;
+    }).join('\n');
+
+    return `
+      <div class="print-page">
+        <div class="print-head" style="margin-bottom:6px;">
+          <div class="print-title">Patient Summaries — Section: ${sec}</div>
+          <div class="print-sub">Generated: ${Utils.formatDateTime(new Date().toISOString())}</div>
+        </div>
+        ${rows || '<div class="small muted">No patients</div>'}
+      </div>`;
+  }).join('\n');
+
+  return pages;
+}
+
+function buildMedicalReportHTML(searchTerm = '', compact = false, options = {}) {
+  const { grouped = true, includeCover = true } = options || {};
+  const pats = filterPatients(searchTerm);
+
+  const bySec = grouped ? groupPatientsBySection(pats) : new Map([['All', pats]]);
+  const sections = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
+
+  const esc = s => String(s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+  const pages = sections.map(sec => {
+    const list = bySec.get(sec) || [];
+
+    const cover = includeCover ? `
+      <div class="print-page" style="display:flex; align-items:center; justify-content:center;">
+        <div style="text-align:center">
+          <div style="font-size:24px; font-weight:800; letter-spacing:.5px; margin-bottom:6px">Patient Medical Report</div>
+          <div style="font-size:15px; opacity:.8">Section: ${esc(sec)}</div>
+          <div style="margin-top:14px" class="mono small muted">${esc(Utils.formatDateTime(new Date().toISOString()))}</div>
+        </div>
+      </div>
+    ` : '';
+
+    const blocks = list.map(p => {
+      const code = p['Patient Code'] || '';
+      const name = p['Patient Name'] || code || '(Unnamed)';
+      const age  = p['Patient Age'] || '';
+      const room = p['Room'] || '';
+      const prov = p['Admitting Provider'] || '';
+      const upd  = p['Updated At'] ? Utils.formatDateTime(p['Updated At']) : '—';
+      const { text, shortText } = ensureSummary(code);
+      const body = compact ? shortText : text;
+
+      // استخراج مقاطع مقترحة (اختياري خفيف—كلّه من النص النهائي)
+      // سنعرض النص كما هو أسفل الهيدر، ثم جداول اختصارية
+      // الأعراض والمختبرات التفصيلية موجودة داخل النص؛ نضيف جدول "Abnormal Labs" فقط إذا أمكن.
+      // هنا نكتفي بالنص الكامل (أكثر وضوحًا) للحفاظ على البساطة.
+
+      return `
+        <div style="break-inside:avoid; padding:12px; border:1px solid #999; border-radius:8px; margin:0 0 12px 0">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="font-weight:700; font-size:16px">${esc(name)}${age ? ' — '+esc(age)+' yrs' : ''}</div>
+            <div class="mono small muted">${esc(code)} • Room ${esc(room || '—')} • Updated ${esc(upd)}</div>
+          </div>
+          <div class="small muted" style="margin:0 0 8px 0">Admitting Provider: ${esc(prov || '—')}</div>
+          <pre class="mono" style="white-space:pre-wrap; line-height:1.35; font-size:12.5px">${esc(body)}</pre>
+          <div style="display:flex; justify-content:space-between; gap:20px; margin-top:8px">
+            <div style="flex:1; border-top:1px solid #bbb; padding-top:8px; text-align:left; font-size:12px">Physician Signature: ____________</div>
+            <div style="flex:1; border-top:1px solid #bbb; padding-top:8px; text-align:left; font-size:12px">Nurse Signature: ____________</div>
+          </div>
+        </div>
+      `;
+    }).join('\n');
+
+    return cover + `
+      <div class="print-page">
+        <div class="print-head" style="margin-bottom:8px;">
+          <div class="print-title" style="font-weight:800">Section: ${esc(sec)}</div>
+          <div class="print-sub">Generated: ${esc(Utils.formatDateTime(new Date().toISOString()))}</div>
+        </div>
+        ${blocks || '<div class="small muted">No patients</div>'}
+      </div>
+    `;
+  }).join('\n');
+
+  return pages;
+}
+
+/* =========================
    Public API
    ========================= */
 export const Summaries = {
@@ -342,14 +450,16 @@ export const Summaries = {
     Bus?.on?.('esas.changed',  ({ code }) => Cache.invalidate(code));
     Bus?.on?.('ctcae.changed', ({ code }) => Cache.invalidate(code));
     Bus?.on?.('labs.changed',  ({ code }) => Cache.invalidate(code));
-    // ملاحظة: تغييرات حقول المريض البيوغرافية لا تملك حدثًا عامًا؛
-    // سنعيد البناء عند الفتح والبحث، وهذا كافٍ للاستخدام اليومي.
 
     // ربط أدوات الواجهة
     const search = document.getElementById('summaries-search');
     const compact = document.getElementById('summaries-compact');
     const printBtn = document.getElementById('summaries-print');
+    const reportBtn = document.getElementById('summaries-medical-report');
     const root = document.getElementById('summaries-root');
+
+    const collapseAll = document.getElementById('summaries-collapse-all');
+    const expandAll   = document.getElementById('summaries-expand-all');
 
     if (search && root) {
       search.addEventListener('input', Utils.debounce(() => {
@@ -361,23 +471,36 @@ export const Summaries = {
         renderListRoot(root, search?.value || '', !!compact.checked);
       });
     }
+    if (collapseAll && root) {
+      collapseAll.addEventListener('click', () => {
+        if (compact && !compact.checked) compact.checked = true;
+        renderListRoot(root, search?.value || '', true);
+      });
+    }
+    if (expandAll && root) {
+      expandAll.addEventListener('click', () => {
+        if (compact && compact.checked) compact.checked = false;
+        renderListRoot(root, search?.value || '', false);
+      });
+    }
     if (printBtn) {
       printBtn.addEventListener('click', () => {
         this.printAll(search?.value || '', !!compact?.checked);
       });
     }
-
-    // Close via backdrop delegated by ui.js already
+    if (reportBtn) {
+      reportBtn.addEventListener('click', () => {
+        this.printMedicalReport(search?.value || '', /*compact=*/false, { grouped:true, includeCover:true });
+      });
+    }
   },
 
   open() {
     const modal = ensureModalScaffold();
-    // توليد القائمة من الحالة الحالية
     const root = document.getElementById('summaries-root');
     const search = document.getElementById('summaries-search');
     const compact = document.getElementById('summaries-compact');
 
-    // إعادة بناء كاملة عند كل فتح
     Cache.clear();
     renderListRoot(root, search?.value || '', !!compact?.checked);
 
@@ -400,43 +523,8 @@ export const Summaries = {
     renderListRoot(root, search?.value || '', !!compact?.checked);
   },
 
-  // طباعة سريعة لكل الملخصات الظاهرة
+  // طباعة سريعة (نفس الزر Print)
   printAll(searchTerm = '', compact = true) {
-    // نبني HTML بسيط للطباعة (A4-friendly) — بدون تعديل CSS أساسي
-    const pats = filterPatients(searchTerm);
-    const bySec = groupPatientsBySection(pats);
-    const sections = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
-
-    const pages = sections.map(sec => {
-      const list = bySec.get(sec) || [];
-      const rows = list.map(p => {
-        const name = p['Patient Name'] || p['Patient Code'] || '(Unnamed)';
-        const code = p['Patient Code'] || '';
-        const upd  = p['Updated At'] ? Utils.formatDateTime(p['Updated At']) : '—';
-        const { text, shortText } = ensureSummary(code);
-        const body = compact ? shortText : text;
-        const esc = s => String(s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-        return `
-          <div style="break-inside:avoid; margin:0 0 10px 0; padding:10px; border:1px solid var(--border); border-radius:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <div style="font-weight:700;">${esc(name)}</div>
-              <div class="mono small muted">${esc(code)} • Updated ${esc(upd)}</div>
-            </div>
-            <pre class="mono small" style="white-space:pre-wrap; line-height:1.3;">${esc(body)}</pre>
-          </div>`;
-      }).join('\n');
-
-      return `
-        <div class="print-page">
-          <div class="print-head" style="margin-bottom:6px;">
-            <div class="print-title">Patient Summaries — Section: ${sec}</div>
-            <div class="print-sub">Generated: ${Utils.formatDateTime(new Date().toISOString())}</div>
-          </div>
-          ${rows || '<div class="small muted">No patients</div>'}
-        </div>`;
-    }).join('\n');
-
-    // حاوية الطباعة
     let printRoot = document.getElementById('summaries-print-root');
     if (!printRoot) {
       printRoot = document.createElement('div');
@@ -444,7 +532,26 @@ export const Summaries = {
       printRoot.style.display = 'none';
       document.body.appendChild(printRoot);
     }
-    printRoot.innerHTML = pages;
+    printRoot.innerHTML = buildQuickPrintHTML(searchTerm, compact);
+    printRoot.style.display = '';
+    document.body.setAttribute('data-printing','true');
+    window.print();
+    setTimeout(()=>{
+      document.body.removeAttribute('data-printing');
+      printRoot.style.display = 'none';
+    }, 400);
+  },
+
+  // تقرير طبي احترافي (زر Medical Report PDF)
+  printMedicalReport(searchTerm = '', compact = false, options = { grouped:true, includeCover:true }) {
+    let printRoot = document.getElementById('summaries-print-root');
+    if (!printRoot) {
+      printRoot = document.createElement('div');
+      printRoot.id = 'summaries-print-root';
+      printRoot.style.display = 'none';
+      document.body.appendChild(printRoot);
+    }
+    printRoot.innerHTML = buildMedicalReportHTML(searchTerm, compact, options);
     printRoot.style.display = '';
     document.body.setAttribute('data-printing','true');
     window.print();
