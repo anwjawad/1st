@@ -125,6 +125,13 @@ function renderSections(){
   if (label) label.textContent = State.activeSection || 'Default';
   populateMoveTargets();
 }
+
+// تحديث عدّاد الأقسام (ممكن نخليه debounced لو حاب)
+// الآن فوري لأن النداءات مش كثيفة جدًا
+function refreshSections(){
+  renderSections();
+}
+
 function symptomsPreview(p){
   const s=(p['Symptoms']||'').split(',').map(x=>x.trim()).filter(Boolean);
   return s.length? s.slice(0,3).join(', ')+(s.length>3?` (+${s.length-3})`:'') : '';
@@ -507,6 +514,7 @@ document.body.addEventListener('click', (e) => {
       Patients.setActiveByCode?.(p['Patient Code']);
       openDashboardFor(p['Patient Code'], true);
       toast('Patient created.','success');
+      refreshSections(); // NEW
     }catch{ toast('Failed to create patient in Sheets.','danger'); }
   });
 
@@ -531,6 +539,7 @@ document.body.addEventListener('click', (e) => {
         renderPatientsList();
         q('[data-close-modal="import-modal"]')?.click();
         toast(`Imported ${objs.length} patients.`, 'success');
+        refreshSections(); // NEW
       }catch{ toast('Import failed. Check CSV order/format.', 'danger'); }
     };
   });
@@ -565,6 +574,7 @@ document.body.addEventListener('click', (e) => {
       const didBulk = await Sheets.deletePatientsInSection?.(sec);
       if (!didBulk) await Sheets.bulkDeletePatients?.(codes);
       toast(`Deleted ${list.length} patients in “${sec}”.`, 'success');
+      refreshSections(); // NEW
     }catch{ toast('Failed to delete all patients from Sheets.', 'danger'); }
   });
 
@@ -625,6 +635,7 @@ document.body.addEventListener('click', (e) => {
       State.sel.delete(theCode);
       renderPatientsList(); Dashboard.clearEmpty?.(true); closePatientModal();
       toast('Patient deleted.','success');
+      refreshSections(); // NEW
     }catch{ toast('Failed to delete patient.','danger'); }
   });
 
@@ -668,6 +679,7 @@ document.body.addEventListener('click', (e) => {
       renderPatientsList();
       populateMoveTargets();
       toast(`Moved ${codes.length} patients to "${target}".`, 'success');
+      refreshSections(); // NEW
     }catch(e){ console.error(e); toast('Failed to move selected patients.','danger'); }
   });
   q('#plist-delete')?.addEventListener('click', async ()=>{
@@ -683,6 +695,7 @@ document.body.addEventListener('click', (e) => {
       State.sel.clear();
       renderPatientsList();
       toast('Selected patients deleted.','success');
+      refreshSections(); // NEW
     }catch(e){ console.error(e); toast('Failed to delete selected patients.','danger'); }
   });
 
@@ -1007,6 +1020,7 @@ document.addEventListener('click', async (e)=>{
     renderPatientsList();
     renderExportList();
     toast(`Moved ${codes.length} patients to "${target}".`,'success');
+    refreshSections(); // NEW
   }
   if (e.target.closest('#btn-export-delete')){
     const codes = Array.from(ExportSel.values());
@@ -1021,6 +1035,7 @@ document.addEventListener('click', async (e)=>{
     renderPatientsList();
     renderExportList();
     toast(`Deleted ${codes.length} patients.`,'success');
+    refreshSections(); // NEW
   }
   if (e.target.closest('#btn-export-print') || e.target.closest('#btn-export-print-footer')){
     renderPrintRootAndPrint();
