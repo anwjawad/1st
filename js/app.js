@@ -16,6 +16,7 @@ import { Utils } from './utils.js';
 import { AIModule } from './ai.js';
 import { Symptoms } from './symptoms.js';
 import { Summaries } from './summaries.js';
+import { Calculators } from './calculators.js';
 
 
 // ===== Defaults on first run =====
@@ -379,6 +380,12 @@ function bindUI(){
       updateBulkBarState();
     });
   });
+  
+// Calculators open buttons
+q('#open-ecog')?.addEventListener('click', () => Calculators.openECOG());
+q('#open-opioid')?.addEventListener('click', () => Calculators.openOpioid());
+q('#open-ppi')?.addEventListener('click', () => Calculators.openPPI());
+q('#open-pps')?.addEventListener('click', () => Calculators.openPPS());
 
   // Search
   const s=q('#search');
@@ -635,6 +642,20 @@ q('#open-summaries')?.addEventListener('click', () => {
       renderPatientsList(); toast('Symptoms updated.','success');
     }catch{ toast('Failed to sync symptoms.','danger'); }
   });
+  
+// Append calculator text to patient's HPI Current
+Bus.on('calc.appendToHPI', async ({ code, text }) => {
+  try{
+    const idx = State.patients.findIndex(p => p['Patient Code'] === code);
+    if (idx < 0) return toast('No active patient.', 'warn');
+    const current = State.patients[idx]['HPI Current'] || '';
+    const sep = current && !/\n$/.test(current) ? '\n' : '';
+    const newVal = current + sep + text;
+    await Sheets.writePatientField(code, 'HPI Current', newVal);
+    State.patients[idx]['HPI Current'] = newVal;
+    toast('Added to Current HPI.', 'success');
+  }catch(e){ console.error(e); toast('Failed to add to HPI.', 'danger'); }
+});
 
   // Labs write-through
   Bus.on('labs.changed', async ({ code, record })=>{
@@ -966,6 +987,7 @@ export const App = {
     AIModule.init?.(Bus, State);
     Symptoms.init?.(Bus, State);
     Summaries.init(Bus, State);
+    Calculators.init?.(Bus, State);
     await loadAllFromSheets();
     State.ready=true;
   },
