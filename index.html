@@ -230,6 +230,18 @@
           <span class="label">AI Proxy Endpoint (optional)</span>
           <input id="set-ai-endpoint" type="url" placeholder="https://your-proxy.example/summarize" />
         </label>
+
+        <!-- NEW: Animation speed control -->
+        <label class="field">
+          <span class="label">Animation speed</span>
+          <select id="set-motion-speed">
+            <option value="1">Normal (1×)</option>
+            <option value="0.7">Fast (0.7×)</option>
+            <option value="1.5">Slow (1.5×)</option>
+          </select>
+        </label>
+        <div class="muted small">Tip: You can also enable “Reduce Motion” in your system settings; the app respects it.</div>
+
         <div class="muted small">Leave OAuth off. All writes go through the Apps Script Bridge.</div>
       </div>
       <div class="modal-footer">
