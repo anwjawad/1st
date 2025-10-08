@@ -163,6 +163,24 @@ function renderPatientsList(){
     if (symPrev){ const chip=document.createElement('span'); chip.className='row-chip sym'; chip.textContent=symPrev; tags.appendChild(chip); }
 
     left.appendChild(header); left.appendChild(meta); left.appendChild(tags);
+
+    // === Mini calculator chips inside each patient card (ECOG / PPI / PPS) ===
+    const mini = document.createElement('div');
+    mini.className = 'mini-actions';
+    function makeChip(label, type) {
+      const b = document.createElement('button');
+      b.className = 'btn-chip';
+      b.dataset.calc = type;
+      b.dataset.code = p['Patient Code'] || '';
+      b.textContent = label;
+      return b;
+    }
+    mini.appendChild(makeChip('ECOG', 'ecog'));
+    mini.appendChild(makeChip('PPI',  'ppi'));
+    mini.appendChild(makeChip('PPS',  'pps'));
+    left.appendChild(mini);
+    // === /mini chips ===
+
     const right=document.createElement('div'); right.innerHTML='<span class="mono muted">'+(p['Patient Code']||'')+'</span>';
 
     row.appendChild(left); row.appendChild(right);
@@ -381,29 +399,29 @@ function bindUI(){
     });
   });
   
-// Calculators open buttons
-q('#open-ecog')?.addEventListener('click', () => Calculators.openECOG());
-q('#open-opioid')?.addEventListener('click', () => Calculators.openOpioid());
-q('#open-ppi')?.addEventListener('click', () => Calculators.openPPI());
-q('#open-pps')?.addEventListener('click', () => Calculators.openPPS());
+  // Calculators open buttons
+  q('#open-ecog')?.addEventListener('click', () => Calculators.openECOG());
+  q('#open-opioid')?.addEventListener('click', () => Calculators.openOpioid());
+  q('#open-ppi')?.addEventListener('click', () => Calculators.openPPI());
+  q('#open-pps')?.addEventListener('click', () => Calculators.openPPS());
 
   // Launch per-patient calculators from card chips (lightweight)
-document.body.addEventListener('click', (e) => {
-  const btn = e.target.closest('.btn-chip[data-calc]');
-  if (!btn) return;
+  document.body.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-chip[data-calc]');
+    if (!btn) return;
 
-  const code = btn.dataset.code;
-  if (code) {
-    // set active patient context so "Link to Latest Notes" knows where to append
-    const p = State.patients.find(x => x['Patient Code'] === code);
-    if (p) State.activePatient = p;
-  }
+    const code = btn.dataset.code;
+    if (code) {
+      // set active patient context so "Link to Latest Notes" knows where to append
+      const p = State.patients.find(x => x['Patient Code'] === code);
+      if (p) State.activePatient = p;
+    }
 
-  const type = btn.dataset.calc;
-  if (type === 'ecog') return Calculators.openECOG();
-  if (type === 'ppi')  return Calculators.openPPI();
-  if (type === 'pps')  return Calculators.openPPS();
-});
+    const type = btn.dataset.calc;
+    if (type === 'ecog') return Calculators.openECOG();
+    if (type === 'ppi')  return Calculators.openPPI();
+    if (type === 'pps')  return Calculators.openPPS();
+  });
 
   // Search
   const s=q('#search');
@@ -473,7 +491,6 @@ document.body.addEventListener('click', (e) => {
   });
 
   // Import
-  
   q('#btn-import')?.addEventListener('click', ()=>{
     q('#csv-preview').innerHTML=''; q('#csv-file-input').value='';
     q('#import-modal')?.classList.remove('hidden');
@@ -542,12 +559,12 @@ document.body.addEventListener('click', (e) => {
       if (id==='patient-modal') document.documentElement.style.overflow='';
     });
   });
-  
-// زر All Summaries
-q('#open-summaries')?.addEventListener('click', () => {
-  Summaries.open();
-});
-  
+
+  // زر All Summaries
+  q('#open-summaries')?.addEventListener('click', () => {
+    Summaries.open();
+  });
+
   // Settings open via delegation
   document.addEventListener('click', (e)=>{
     const t=e.target.closest('#open-settings'); if(!t) return;
@@ -661,23 +678,22 @@ q('#open-summaries')?.addEventListener('click', () => {
     }catch{ toast('Failed to sync symptoms.','danger'); }
   });
   
-// Append calculator text to patient's HPI Current
-// Append calculator text to patient's Latest Notes (always append; never replace)
-Bus.on('calc.appendToHPI', async ({ code, text }) => {
-  try{
-    const idx = State.patients.findIndex(p => p['Patient Code'] === code);
-    if (idx < 0) return toast('No active patient.', 'warn');
+  // Append calculator text to patient's Latest Notes (always append; never replace)
+  Bus.on('calc.appendToHPI', async ({ code, text }) => {
+    try{
+      const idx = State.patients.findIndex(p => p['Patient Code'] === code);
+      if (idx < 0) return toast('No active patient.', 'warn');
 
-    const current = State.patients[idx]['Latest Notes'] || '';
-    const sep = current && !/\n$/.test(current) ? '\n' : '';
-    const newVal = current + sep + text;
+      const current = State.patients[idx]['Latest Notes'] || '';
+      const sep = current && !/\n$/.test(current) ? '\n' : '';
+      const newVal = current + sep + text;
 
-    await Sheets.writePatientField(code, 'Latest Notes', newVal);
-    State.patients[idx]['Latest Notes'] = newVal;
+      await Sheets.writePatientField(code, 'Latest Notes', newVal);
+      State.patients[idx]['Latest Notes'] = newVal;
 
-    toast('Added to Latest Notes.', 'success');
-  }catch(e){ console.error(e); toast('Failed to add to Latest Notes.', 'danger'); }
-});
+      toast('Added to Latest Notes.', 'success');
+    }catch(e){ console.error(e); toast('Failed to add to Latest Notes.', 'danger'); }
+  });
 
   // Labs write-through
   Bus.on('labs.changed', async ({ code, record })=>{
