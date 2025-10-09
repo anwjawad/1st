@@ -546,5 +546,58 @@ body[data-printing="true"] #print-root { display:block !important; }
 
 /* يمكن استعمال هذا عند تفعيل/تعطيل الحركة من الإعدادات مستقبلاً */
 @media (prefers-reduced-motion: reduce){
+   /* === Reinforce transitions & mobile animations === */
+:root {
+  --motion-multiplier: var(--motion-multiplier, 1);
+  --motion-duration: calc(0.25s * var(--motion-multiplier));
+  --motion-slow: calc(0.45s * var(--motion-multiplier));
+}
+
+/* مودالات */
+.modal:not(.hidden) .modal-card {
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform var(--motion-slow) ease, opacity var(--motion-slow) ease;
+}
+.modal.hidden .modal-card {
+  transform: translateY(-20px);
+  opacity: 0;
+}
+
+/* السايدبار */
+#sidebar {
+  transition: transform var(--motion-slow) ease, opacity var(--motion-slow) ease;
+}
+body.sidebar-open #sidebar {
+  transform: translateX(0);
+  opacity: 1;
+}
+body:not(.sidebar-open) #sidebar {
+  transform: translateX(-100%);
+  opacity: 0.8;
+}
+
+/* Hover على الكارد */
+.patient-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.patient-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+}
+
+/* Smooth fade/slide عند تغيّر الأقسام */
+#patients-list {
+  transition: opacity var(--motion-duration) ease, transform var(--motion-duration) ease;
+}
+#patients-list.enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+#patients-list.enter-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
   .scrim{ backdrop-filter:none; }
 }
