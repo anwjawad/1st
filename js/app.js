@@ -18,7 +18,6 @@ import { Symptoms } from './symptoms.js';
 import { Summaries } from './summaries.js';
 import { Calculators } from './calculators.js';
 
-
 // ===== Defaults on first run =====
 const DEFAULTS = {
   spreadsheetId: '1l8UoblxznwV_zz7ZqnorOWZKfnmG3pZgVCT0DaSm0kU',
@@ -178,8 +177,7 @@ function renderSections(){
   populateMoveTargets();
 }
 
-// تحديث عدّاد الأقسام (ممكن نخليه debounced لو حاب)
-// الآن فوري لأن النداءات مش كثيفة جدًا
+// تحديث عدّاد الأقسام
 function refreshSections(){
   renderSections();
 }
@@ -464,8 +462,12 @@ async function loadAllFromSheets(){
     State.loading=false;
   }
 }
+
 // ===== Mobile UI (sidebar toggle + scrim + FAB) =====
 function setupMobileUI(){
+  if (window.__mobileSetupDone) return;         // قفل لمنع التكرار
+  window.__mobileSetupDone = true;
+
   const topbar = q('#topbar');
 
   // زر الهامبرغر (يُحقن تلقائياً ولا يحتاج تعديل في index.html)
@@ -511,6 +513,7 @@ function setupMobileUI(){
     q('#btn-new-patient')?.click();
   });
 }
+
 // ===== Bind UI =====
 function bindUI(){
   UI.init?.(Bus);
@@ -540,9 +543,8 @@ function bindUI(){
 
     const code = btn.dataset.code || '';
     if (code) {
-      // ثبّت المريض النشط عبر Patients API (الـ getter سيقرؤه لاحقًا)
+      // ثبّت المريض النشط
       Patients.setActiveByCode?.(code);
-      // حدّث data-code على مودال المريض (حتى لو المودال مش مفتوح)
       const pm = q('#patient-modal');
       if (pm) pm.dataset.code = code;
     }
@@ -552,7 +554,6 @@ function bindUI(){
     if (type === 'ppi')  return Calculators.openPPI();
     if (type === 'pps')  return Calculators.openPPS();
   });
-
 
   // Search
   const s=q('#search');
@@ -618,7 +619,7 @@ function bindUI(){
       Patients.setActiveByCode?.(p['Patient Code']);
       openDashboardFor(p['Patient Code'], true);
       toast('Patient created.','success');
-      refreshSections(); // NEW
+      refreshSections();
     }catch{ toast('Failed to create patient in Sheets.','danger'); }
   });
 
@@ -643,7 +644,7 @@ function bindUI(){
         renderPatientsList();
         q('[data-close-modal="import-modal"]')?.click();
         toast(`Imported ${objs.length} patients.`, 'success');
-        refreshSections(); // NEW
+        refreshSections();
       }catch{ toast('Import failed. Check CSV order/format.', 'danger'); }
     };
   });
@@ -678,7 +679,7 @@ function bindUI(){
       const didBulk = await Sheets.deletePatientsInSection?.(sec);
       if (!didBulk) await Sheets.bulkDeletePatients?.(codes);
       toast(`Deleted ${list.length} patients in “${sec}”.`, 'success');
-      refreshSections(); // NEW
+      refreshSections();
     }catch{ toast('Failed to delete all patients from Sheets.', 'danger'); }
   });
 
@@ -728,7 +729,8 @@ function bindUI(){
     localStorage.setItem('pr.bridge', State.config.bridgeUrl);
     localStorage.setItem('pr.ai',     State.config.aiEndpoint);
     q('#settings-modal')?.classList.add('hidden');
-    setupMobileUI();
+
+    setupMobileUI();               // تأكد من تفعيل الموبايل بعد أي تعديل
     await loadAllFromSheets();
     toast('Settings saved. Reconnected.','success');
   });
@@ -750,7 +752,7 @@ function bindUI(){
       State.sel.delete(theCode);
       renderPatientsList(); Dashboard.clearEmpty?.(true); closePatientModal();
       toast('Patient deleted.','success');
-      refreshSections(); // NEW
+      refreshSections();
     }catch{ toast('Failed to delete patient.', 'danger'); }
   });
 
@@ -794,7 +796,7 @@ function bindUI(){
       renderPatientsList();
       populateMoveTargets();
       toast(`Moved ${codes.length} patients to "${target}".`, 'success');
-      refreshSections(); // NEW
+      refreshSections();
     }catch(e){ console.error(e); toast('Failed to move selected patients.','danger'); }
   });
   q('#plist-delete')?.addEventListener('click', async ()=>{
@@ -810,7 +812,7 @@ function bindUI(){
       State.sel.clear();
       renderPatientsList();
       toast('Selected patients deleted.','success');
-      refreshSections(); // NEW
+      refreshSections();
     }catch(e){ console.error(e); toast('Failed to delete selected patients.','danger'); }
   });
 
@@ -966,13 +968,11 @@ function renderExportList(){
 }
 
 // ===== Print builder with scaling options (custom columns) =====
-
-// helpers for print row formatting
 function escapeHTML(s){ return String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function ageYearsOnly(v){
   if (v==null) return '';
   const m = String(v).match(/\d+/);
-  return m ? m[0] : String(v); // أول رقم صحيح فقط
+  return m ? m[0] : String(v);
 }
 function firstWord(s){
   const t = String(s||'').trim();
@@ -1029,13 +1029,11 @@ function buildPrintPagesHTML(selectedCodes, options){
       const iso    = String(p['Isolation']||'').trim();
       const note   = escapeHTML(p['Comments']||'');
 
-      // isolation shading if not Standard
       const isoLower = iso.toLowerCase();
       const isoCellStyle = (iso && isoLower !== 'standard')
         ? ' style="background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact;"'
         : '';
 
-      // 8 columns (Diet removed), expand Notes implicitly by colgroup widths
       return `<tr>
         <td>${code}</td>
         <td>${name}</td>
@@ -1048,8 +1046,6 @@ function buildPrintPagesHTML(selectedCodes, options){
       </tr>`;
     }).join('');
 
-    // Colgroup to widen Notes, shrink others
-    // widths sum to ~100%
     const colgroup = `
       <colgroup>
         <col style="width:10%">
@@ -1135,7 +1131,7 @@ document.addEventListener('click', async (e)=>{
     renderPatientsList();
     renderExportList();
     toast(`Moved ${codes.length} patients to "${target}".`,'success');
-    refreshSections(); // NEW
+    refreshSections();
   }
   if (e.target.closest('#btn-export-delete')){
     const codes = Array.from(ExportSel.values());
@@ -1150,7 +1146,7 @@ document.addEventListener('click', async (e)=>{
     renderPatientsList();
     renderExportList();
     toast(`Deleted ${codes.length} patients.`,'success');
-    refreshSections(); // NEW
+    refreshSections();
   }
   if (e.target.closest('#btn-export-print') || e.target.closest('#btn-export-print-footer')){
     renderPrintRootAndPrint();
@@ -1182,6 +1178,8 @@ export const App = {
     Symptoms.init?.(Bus, State);
     Summaries.init(Bus, State);
     Calculators.init?.(Bus, State);
+
+    setupMobileUI();              // <— مضافة هنا
 
     await loadAllFromSheets();
     State.ready=true;
