@@ -3,6 +3,7 @@
 // + Bulk ops in main list (select/move/delete)
 // + Export Patient List with print scaling (scale/font/fit-one) and custom columns
 // + Robust write-through for text fields
+// [PATCH] Backward-compat: add App.start() alias to App.init() to fix callers using App.start()
 
 import { Sheets } from './sheets.js';
 import { Patients } from './patients.js';
@@ -345,7 +346,7 @@ function ensureModalFieldBindings(modal){
 let dashboardFieldBindingDone = false;
 const debouncedWrites = new WeakMap();
 
-// (3) FIX: لا تلتقط كود المريض في إغلاق debounce — اقرأه لحظة التنفيذ
+// FIX (from earlier): debounce reads code at execution time to avoid cross-patient writes
 function writeFieldDebounced(_codeIgnored, field, el){
   if (!debouncedWrites.has(el)) {
     debouncedWrites.set(el, Utils.debounce(async ()=>{
@@ -403,8 +404,6 @@ function openDashboardFor(code, asModal=false){
   const patient = State.patients.find(p=>p['Patient Code']===code);
   if (!patient) return;
   Patients.setActiveByCode?.(code);
-  // (3) FIX: إعادة تهيئة المصفوفة المؤجلة عند فتح مريض جديد لتجنّب تسرّب الكتابات
-  debouncedWrites = new WeakMap();
   const pm = q('#patient-modal'); if (pm) pm.dataset.code = code;
   const t=q('#dashboard-title'); if (t) t.textContent=`Dashboard — ${patient['Patient Name']||code}`;
   const mt=q('#patient-modal-title'); if (mt) mt.textContent=patient['Patient Name']||code;
@@ -825,7 +824,6 @@ function renderExportList(){
     table.style.borderCollapse='collapse';
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
-    // ملاحظة: جدول المعاينة داخل المودال لم نغيره (Diet موجود) لأنك طلبت التغيير للطباعة فقط.
     ['Select','Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Cause Of Admission','Diet','Isolation','Note'].forEach(h=>{
       const th = document.createElement('th');
       th.textContent = h;
@@ -883,7 +881,7 @@ function renderExportList(){
   }
 }
 
-// (1) Helper: أخذ أول سطرين فقط من Cause Of Admission (Diagnosis) للتصدير
+// Helper: first two lines of Cause Of Admission for printing
 function firstLines(text, n=2){
   const s = String(text == null ? '' : text);
   if (!s) return '';
@@ -891,7 +889,7 @@ function firstLines(text, n=2){
   return lines.join('\n');
 }
 
-// Print pages builder (A4, one page per section)
+// Print pages builder (A4, force one page per section)
 const A4_CONTENT_HEIGHT_PX = 1030;
 const HEAD_EST = 60;
 const ROW_EST_FACTOR = 2.2;
@@ -939,7 +937,7 @@ function buildPrintPagesHTML(selectedCodes, options){
       const age    = escapeHTML(ageYearsOnly(p['Patient Age']||''));
       const room   = escapeHTML(p['Room']||'');
       const prov   = escapeHTML(firstWord(p['Admitting Provider']||'')); // first token only
-      const cause  = escapeHTML(firstLines(p['Diagnosis']||'', 2)); // (1) أول سطرين فقط
+      const cause  = escapeHTML(firstLines(p['Diagnosis']||'', 2)); // أول سطرين فقط
       const iso    = String(p['Isolation']||'').trim();
       const note   = escapeHTML(p['Comments']||'');
 
@@ -1011,7 +1009,7 @@ function renderPrintRootAndPrint(){
   const scale = Math.max(50, Math.min(100, parseInt(q('#export-scale')?.value || '100', 10) || 100));
   const fontPx = parseInt(q('#export-font')?.value || '12', 10) || 12;
   const fitOne = !!q('#export-fit-one')?.checked;
-  // (1) Force one A4 page per section عند الطباعة بغض النظر عن صندوق الاختيار
+  // Force one A4 page per section regardless of checkbox
   root.innerHTML = buildPrintPagesHTML(selected, { scalePercent: scale, fontPx, fitOne: true });
   root.style.display = '';
   document.body.setAttribute('data-printing','true');
@@ -1079,11 +1077,17 @@ export const App = {
     Summaries.init(Bus, State);
     Calculators.init?.(Bus, State);
 
-    setupMobileUI();              // <— مضافة هنا
+    setupMobileUI();
 
     await loadAllFromSheets();
     State.ready=true;
   },
+
+  // [PATCH] alias for backward compatibility (fix TypeError: App.start is not a function)
+  async start(){
+    return this.init();
+  },
+
   bus: Bus,
   state: State
 };
