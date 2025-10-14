@@ -4,8 +4,11 @@
 // - واجهة: مودال/صفحة فيها تجميع حسب القسم + بحث + نسخ + عرض مختصر/مفصّل + طباعة بسيطة + تقرير طبي احترافي
 // - كاش: يعيد توليد ملخّص مريض فقط إذا تغيّر توقيت Updated At (أو حقول أساسية).
 //
+// [PATCH-5]: إظهار جميع الـ symptoms + symptoms notes في البطاقة والطباعة.
+//            لا نعتمد على ai.js لهذا الطلب، بل نضيف مقطعًا ثابتًا في summaries.js.
+//
 // نقاط الدمج:
-// - في index.html: استيراد summaries.js موجود مسبقًا وزر open-summaries موصول.
+// - في app.js: يوجد زر open-summaries موصول مسبقًا.
 // - لا نغيّر أي منطق قائم؛ كل التوليد يتم من State الحالي.
 
 import { Utils } from './utils.js';
@@ -82,7 +85,9 @@ const Cache = (() => {
       (p?.['Patient Name']||'') + '|' +
       (p?.['Diagnosis']||'') + '|' +
       (p?.['Room']||'') + '|' +
-      (p?.['Patient Assessment']||'');
+      (p?.['Patient Assessment']||'') + '|' +
+      (p?.['Symptoms']||'') + '|' +                // [PATCH-5] symptoms ضمن النسخة
+      (p?.['Symptoms Notes']||'');
     return `${pv}|${ev}|${cv}|${lv}|${core.length}`;
   }
 
@@ -121,6 +126,37 @@ function bundleFor(code) {
 }
 
 /* =========================
+   Symptoms helpers  [PATCH-5]
+   ========================= */
+function parseSymptomsArray(p) {
+  return String(p?.['Symptoms'] || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+function parseSymptomsNotesMap(p) {
+  const raw = p?.['Symptoms Notes'] || '{}';
+  try { 
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === 'object') return obj;
+  } catch { /* ignore */ }
+  return {};
+}
+/** نص منسّق لجميع الأعراض + الملاحظات (سطر لكل عَرَض) */
+function buildSymptomsBlock(patient) {
+  const arr = parseSymptomsArray(patient);
+  const notes = parseSymptomsNotesMap(patient);
+  if (!arr.length && !Object.keys(notes).length) return ''; // لا شيء
+  const lines = arr.length 
+    ? arr.map(k => {
+        const note = (notes && notes[k]) ? ` — ${String(notes[k]).trim()}` : '';
+        return `• ${k}${note}`;
+      })
+    : Object.keys(notes).map(k => `• ${k} — ${String(notes[k]).trim()}`);
+  return lines.join('\n');
+}
+
+/* =========================
    Summary generation
    ========================= */
 function toShort(text, maxLines = 7) {
@@ -130,6 +166,19 @@ function toShort(text, maxLines = 7) {
   return lines.slice(0, maxLines).join('\n') + '\n…';
 }
 
+/** يبني الملخّص الأساسي من AIModule ثم يضيف symptoms block [PATCH-5] */
+function computeFullSummaryWithSymptoms(b) {
+  const base = AIModule.localHeuristicSummary(b) || '';
+  const symBlock = buildSymptomsBlock(b?.patient);
+  if (!symBlock) return base;
+  // نضيف قسمًا واضحًا، دون تكرار إذا كان الملخّص الأساسي يتضمنه أصلاً
+  if (base.includes('Symptoms:') || base.includes('الأعراض:')) {
+    // لو كان موجودًا، نضيف عنوانًا بسيطًا آخر لتجنّب الدمج داخل النص السابق.
+    return `${base}\n\nAll Symptoms:\n${symBlock}`;
+  }
+  return `${base}\n\nSymptoms:\n${symBlock}`;
+}
+
 function ensureSummary(code) {
   const b = bundleFor(code);
   if (!b) return { text: '(not found)', shortText: '(not found)' };
@@ -137,7 +186,8 @@ function ensureSummary(code) {
   const cached = Cache.get(code, ver);
   if (cached) return { text: cached.text, shortText: cached.shortText };
 
-  const text = AIModule.localHeuristicSummary(b);
+  // [PATCH-5] استبدال التوليد المباشر بالتوليد المُحسّن مع الأعراض
+  const text = computeFullSummaryWithSymptoms(b);
   const shortText = toShort(text, 7);
   Cache.set(code, ver, text, shortText);
   return { text, shortText };
@@ -191,7 +241,7 @@ function makePatientCard(p, compact=true) {
   card.className = 'card';
   card.style.padding = '12px';
   card.style.display = 'grid';
-  card.style.gap = '6px';
+  card.style.gap = '8px';
 
   const head = document.createElement('div');
   head.className = 'card-head';
@@ -209,11 +259,26 @@ function makePatientCard(p, compact=true) {
   head.appendChild(title);
   head.appendChild(meta);
 
+  // محتوى الملخص
   const pre = document.createElement('pre');
   pre.className = 'mono small';
   pre.style.whiteSpace = 'pre-wrap';
-  pre.style.lineHeight = '1.3';
+  pre.style.lineHeight = '1.35';
   pre.textContent = showText || '(empty)';
+
+  // [PATCH-5] قسم واضح للأعراض الكاملة + الملاحظات (ظاهريًا أسفل الملخص)
+  const symBlock = buildSymptomsBlock(p);
+  let symWrap = null;
+  if (symBlock) {
+    symWrap = document.createElement('div');
+    symWrap.className = 'small';
+    symWrap.style.background = 'var(--card-2)';
+    symWrap.style.border = '1px solid var(--border)';
+    symWrap.style.borderRadius = '10px';
+    symWrap.style.padding = '8px 10px';
+    symWrap.style.whiteSpace = 'pre-wrap';
+    symWrap.innerHTML = `<div class="muted" style="margin-bottom:4px;font-weight:600">All Symptoms</div>${symBlock.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}`;
+  }
 
   const row = document.createElement('div');
   row.style.display = 'flex';
@@ -248,6 +313,7 @@ function makePatientCard(p, compact=true) {
 
   card.appendChild(head);
   card.appendChild(pre);
+  if (symWrap) card.appendChild(symWrap); // [PATCH-5]
   card.appendChild(row);
   return card;
 }
@@ -345,7 +411,9 @@ function buildQuickPrintHTML(searchTerm = '', compact = true) {
       const upd  = p['Updated At'] ? Utils.formatDateTime(p['Updated At']) : '—';
       const { text, shortText } = ensureSummary(code);
       const body = compact ? shortText : text;
+      const sym  = buildSymptomsBlock(p); // [PATCH-5]
       const esc = s => String(s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+      const symHTML = sym ? `<div class="small" style="margin-top:6px"><strong>All Symptoms</strong><br/><pre class="mono small" style="white-space:pre-wrap; border:1px solid #ddd; padding:6px; border-radius:8px; background:#fafafa">${esc(sym)}</pre></div>` : '';
       return `
         <div style="break-inside:avoid; margin:0 0 10px 0; padding:10px; border:1px solid var(--border); border-radius:8px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -353,6 +421,7 @@ function buildQuickPrintHTML(searchTerm = '', compact = true) {
             <div class="mono small muted">${esc(code)} • Updated ${esc(upd)}</div>
           </div>
           <pre class="mono small" style="white-space:pre-wrap; line-height:1.3;">${esc(body)}</pre>
+          ${symHTML}
         </div>`;
     }).join('\n');
 
@@ -400,164 +469,118 @@ function buildMedicalReportHTML(searchTerm = '', compact = false, options = {}) 
       const upd  = p['Updated At'] ? Utils.formatDateTime(p['Updated At']) : '—';
       const { text, shortText } = ensureSummary(code);
       const body = compact ? shortText : text;
+      const symptomsFull = buildSymptomsBlock(p); // [PATCH-5]
 
-      // استخراج مقاطع مقترحة (اختياري خفيف—كلّه من النص النهائي)
-      // سنعرض النص كما هو أسفل الهيدر، ثم جداول اختصارية
-      // الأعراض والمختبرات التفصيلية موجودة داخل النص؛ نضيف جدول "Abnormal Labs" فقط إذا أمكن.
-      // هنا نكتفي بالنص الكامل (أكثر وضوحًا) للحفاظ على البساطة.
+      const infoTable = `
+        <table style="width:100%; border-collapse:collapse; font-size:12px">
+          <tr><td style="width:22%; border:1px solid #ddd; padding:6px"><strong>Name</strong></td><td style="border:1px solid #ddd; padding:6px">${esc(name)}</td></tr>
+          <tr><td style="border:1px solid #ddd; padding:6px"><strong>Code</strong></td><td style="border:1px solid #ddd; padding:6px" class="mono">${esc(code)}</td></tr>
+          <tr><td style="border:1px solid #ddd; padding:6px"><strong>Age</strong></td><td style="border:1px solid #ddd; padding:6px">${esc(age)}</td></tr>
+          <tr><td style="border:1px solid #ddd; padding:6px"><strong>Room</strong></td><td style="border:1px solid #ddd; padding:6px">${esc(room)}</td></tr>
+          <tr><td style="border:1px solid #ddd; padding:6px"><strong>Admitting Provider</strong></td><td style="border:1px solid #ddd; padding:6px">${esc(prov)}</td></tr>
+          <tr><td style="border:1px solid #ddd; padding:6px"><strong>Updated</strong></td><td style="border:1px solid #ddd; padding:6px">${esc(upd)}</td></tr>
+        </table>`;
+
+      const summaryBox = `
+        <div style="margin-top:10px">
+          <div style="font-weight:700; margin:6px 0">Summary</div>
+          <pre class="mono small" style="white-space:pre-wrap; line-height:1.35; border:1px solid #ddd; padding:8px; border-radius:8px; background:#fafafa">${esc(body)}</pre>
+        </div>`;
+
+      const symptomsBox = symptomsFull ? `
+        <div style="margin-top:8px">
+          <div style="font-weight:700; margin:6px 0">All Symptoms</div>
+          <pre class="mono small" style="white-space:pre-wrap; line-height:1.35; border:1px solid #ddd; padding:8px; border-radius:8px; background:#fafafa">${esc(symptomsFull)}</pre>
+        </div>` : '';
 
       return `
-        <div style="break-inside:avoid; padding:12px; border:1px solid #999; border-radius:8px; margin:0 0 12px 0">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <div style="font-weight:700; font-size:16px">${esc(name)}${age ? ' — '+esc(age)+' yrs' : ''}</div>
-            <div class="mono small muted">${esc(code)} • Room ${esc(room || '—')} • Updated ${esc(upd)}</div>
-          </div>
-          <div class="small muted" style="margin:0 0 8px 0">Admitting Provider: ${esc(prov || '—')}</div>
-          <pre class="mono" style="white-space:pre-wrap; line-height:1.35; font-size:12.5px">${esc(body)}</pre>
-          <div style="display:flex; justify-content:space-between; gap:20px; margin-top:8px">
-            <div style="flex:1; border-top:1px solid #bbb; padding-top:8px; text-align:left; font-size:12px">Physician Signature: ____________</div>
-            <div style="flex:1; border-top:1px solid #bbb; padding-top:8px; text-align:left; font-size:12px">Nurse Signature: ____________</div>
-          </div>
-        </div>
-      `;
+        <div style="break-inside:avoid; margin:0 0 14px 0; padding:12px; border:1px solid #ddd; border-radius:10px;">
+          ${infoTable}
+          ${summaryBox}
+          ${symptomsBox}
+        </div>`;
     }).join('\n');
 
-    return cover + `
+    return `${cover}
       <div class="print-page">
-        <div class="print-head" style="margin-bottom:8px;">
-          <div class="print-title" style="font-weight:800">Section: ${esc(sec)}</div>
-          <div class="print-sub">Generated: ${esc(Utils.formatDateTime(new Date().toISOString()))}</div>
+        <div class="print-head" style="margin-bottom:10px;">
+          <div class="print-title">Section: ${esc(sec)}</div>
+          <div class="print-sub">Generated: ${Utils.formatDateTime(new Date().toISOString())}</div>
         </div>
         ${blocks || '<div class="small muted">No patients</div>'}
-      </div>
-    `;
+      </div>`;
   }).join('\n');
 
   return pages;
 }
 
 /* =========================
-   Public API
+   Public API (Modal open)
+   ========================= */
+function openModal() {
+  const modal = ensureModalScaffold();
+  const root = document.getElementById('summaries-root');
+  const search = document.getElementById('summaries-search');
+  const compactCb = document.getElementById('summaries-compact');
+  const btnCollapse = document.getElementById('summaries-collapse-all');
+  const btnExpand   = document.getElementById('summaries-expand-all');
+  const btnPrint    = document.getElementById('summaries-print');
+  const btnReport   = document.getElementById('summaries-medical-report');
+
+  const render = () => renderListRoot(root, search?.value || '', !!compactCb?.checked);
+
+  search?.addEventListener('input', Utils.debounce(render, 180));
+  compactCb?.addEventListener('change', render);
+  btnCollapse?.addEventListener('click', ()=> {
+    // اجبر إعادة بناء كل البطاقات بوضع compact=true
+    renderListRoot(root, search?.value || '', true);
+  });
+  btnExpand?.addEventListener('click', ()=> {
+    renderListRoot(root, search?.value || '', false);
+  });
+
+  btnPrint?.addEventListener('click', ()=> {
+    const html = buildQuickPrintHTML(search?.value || '', !!compactCb?.checked);
+    const printRoot = document.getElementById('print-root') || (()=>{ const d=document.createElement('div'); d.id='print-root'; document.body.appendChild(d); return d; })();
+    printRoot.innerHTML = html;
+    printRoot.style.display = '';
+    document.body.setAttribute('data-printing','true');
+    window.print();
+    setTimeout(()=>{ document.body.removeAttribute('data-printing'); printRoot.style.display='none'; }, 400);
+  });
+
+  btnReport?.addEventListener('click', ()=> {
+    const html = buildMedicalReportHTML(search?.value || '', false, { grouped: true, includeCover: true });
+    const printRoot = document.getElementById('print-root') || (()=>{ const d=document.createElement('div'); d.id='print-root'; document.body.appendChild(d); return d; })();
+    printRoot.innerHTML = html;
+    printRoot.style.display = '';
+    document.body.setAttribute('data-printing','true');
+    window.print();
+    setTimeout(()=>{ document.body.removeAttribute('data-printing'); printRoot.style.display='none'; }, 400);
+  });
+
+  render();
+  modal.classList.remove('hidden');
+  document.documentElement.style.overflow='hidden';
+
+  // إغلاق من زر X أو الكليك على الخلفية
+  modal.addEventListener('click', (e)=>{
+    if (e.target.closest('[data-close-modal="summaries-modal"]') || e.target === modal) {
+      modal.classList.add('hidden');
+      document.documentElement.style.overflow='';
+    }
+  }, { once: true });
+}
+
+/* =========================
+   Module export
    ========================= */
 export const Summaries = {
   init(bus, state) {
-    Bus = bus; State = state;
-
-    // تجهيز المودال إن لم يوجد
-    ensureModalScaffold();
-
-    // أحداث تغيّر البيانات → إبطال كاش المريض
-    Bus?.on?.('esas.changed',  ({ code }) => Cache.invalidate(code));
-    Bus?.on?.('ctcae.changed', ({ code }) => Cache.invalidate(code));
-    Bus?.on?.('labs.changed',  ({ code }) => Cache.invalidate(code));
-
-    // ربط أدوات الواجهة
-    const search = document.getElementById('summaries-search');
-    const compact = document.getElementById('summaries-compact');
-    const printBtn = document.getElementById('summaries-print');
-    const reportBtn = document.getElementById('summaries-medical-report');
-    const root = document.getElementById('summaries-root');
-
-    const collapseAll = document.getElementById('summaries-collapse-all');
-    const expandAll   = document.getElementById('summaries-expand-all');
-
-    if (search && root) {
-      search.addEventListener('input', Utils.debounce(() => {
-        renderListRoot(root, search.value || '', !!compact?.checked);
-      }, 200));
-    }
-    if (compact && root) {
-      compact.addEventListener('change', () => {
-        renderListRoot(root, search?.value || '', !!compact.checked);
-      });
-    }
-    if (collapseAll && root) {
-      collapseAll.addEventListener('click', () => {
-        if (compact && !compact.checked) compact.checked = true;
-        renderListRoot(root, search?.value || '', true);
-      });
-    }
-    if (expandAll && root) {
-      expandAll.addEventListener('click', () => {
-        if (compact && compact.checked) compact.checked = false;
-        renderListRoot(root, search?.value || '', false);
-      });
-    }
-    if (printBtn) {
-      printBtn.addEventListener('click', () => {
-        this.printAll(search?.value || '', !!compact?.checked);
-      });
-    }
-    if (reportBtn) {
-      reportBtn.addEventListener('click', () => {
-        this.printMedicalReport(search?.value || '', /*compact=*/false, { grouped:true, includeCover:true });
-      });
-    }
+    Bus = bus;
+    State = state;
   },
-
   open() {
-    const modal = ensureModalScaffold();
-    const root = document.getElementById('summaries-root');
-    const search = document.getElementById('summaries-search');
-    const compact = document.getElementById('summaries-compact');
-
-    Cache.clear();
-    renderListRoot(root, search?.value || '', !!compact?.checked);
-
-    modal.classList.remove('hidden');
-    document.documentElement.style.overflow = 'hidden';
-  },
-
-  close() {
-    const modal = document.getElementById('summaries-modal');
-    if (!modal) return;
-    modal.classList.add('hidden');
-    document.documentElement.style.overflow = '';
-  },
-
-  refresh() {
-    const root = document.getElementById('summaries-root');
-    if (!root) return;
-    const search = document.getElementById('summaries-search');
-    const compact = document.getElementById('summaries-compact');
-    renderListRoot(root, search?.value || '', !!compact?.checked);
-  },
-
-  // طباعة سريعة (نفس الزر Print)
-  printAll(searchTerm = '', compact = true) {
-    let printRoot = document.getElementById('summaries-print-root');
-    if (!printRoot) {
-      printRoot = document.createElement('div');
-      printRoot.id = 'summaries-print-root';
-      printRoot.style.display = 'none';
-      document.body.appendChild(printRoot);
-    }
-    printRoot.innerHTML = buildQuickPrintHTML(searchTerm, compact);
-    printRoot.style.display = '';
-    document.body.setAttribute('data-printing','true');
-    window.print();
-    setTimeout(()=>{
-      document.body.removeAttribute('data-printing');
-      printRoot.style.display = 'none';
-    }, 400);
-  },
-
-  // تقرير طبي احترافي (زر Medical Report PDF)
-  printMedicalReport(searchTerm = '', compact = false, options = { grouped:true, includeCover:true }) {
-    let printRoot = document.getElementById('summaries-print-root');
-    if (!printRoot) {
-      printRoot = document.createElement('div');
-      printRoot.id = 'summaries-print-root';
-      printRoot.style.display = 'none';
-      document.body.appendChild(printRoot);
-    }
-    printRoot.innerHTML = buildMedicalReportHTML(searchTerm, compact, options);
-    printRoot.style.display = '';
-    document.body.setAttribute('data-printing','true');
-    window.print();
-    setTimeout(()=>{
-      document.body.removeAttribute('data-printing');
-      printRoot.style.display = 'none';
-    }, 400);
+    openModal();
   }
 };
