@@ -22,7 +22,9 @@ import { Symptoms } from './symptoms.js';
 import { Summaries } from './summaries.js';
 import { Calculators } from './calculators.js';
 
-// ===== Defaults on first run =====
+/* ===========================================
+   Defaults on first run
+   =========================================== */
 const DEFAULTS = {
   spreadsheetId: '1l8UoblxznwV_zz7ZqnorOWZKfnmG3pZgVCT0DaSm0kU',
   bridgeUrl: 'https://script.google.com/macros/s/AKfycbxjiRgEeKlRbJQz_NZ0YhE0RSubMNLhi-Ndzk1PUCm0cW1ZJgIfqZc7bWiDlXd6wA8/exec'
@@ -30,10 +32,13 @@ const DEFAULTS = {
 (function ensureDefaults(){
   if (!localStorage.getItem('pr.sheet'))  localStorage.setItem('pr.sheet',  DEFAULTS.spreadsheetId);
   if (!localStorage.getItem('pr.bridge')) localStorage.setItem('pr.bridge', DEFAULTS.bridgeUrl);
+  // NEW: default motion speed (CSS multiplier)
   if (!localStorage.getItem('pr.motion')) localStorage.setItem('pr.motion', '1');
 })();
 
-// ===== Helpers =====
+/* ===========================================
+   Helpers
+   =========================================== */
 function toRoomKey(v){
   const s = String(v || '').trim();
   if (!s) return {num: Number.POSITIVE_INFINITY, raw: ''};
@@ -51,8 +56,11 @@ function applyMotionSpeedFromStorage(){
   document.documentElement.style.setProperty('--motion-multiplier', v);
 }
 
-// ===== Preferences =====
+/* ===========================================
+   Preferences (ThemeManager integration)
+   =========================================== */
 function getPreferences(){
+  // ThemeManager معرف عالميًا من themes.js
   const s = (window.ThemeManager && typeof window.ThemeManager.getSettings === 'function')
     ? window.ThemeManager.getSettings()
     : { cardDensity:'expanded', sectionOrder:[], modalColor:'auto' };
@@ -62,7 +70,7 @@ function applyDensityPref(s){
   try{
     const dens = s.cardDensity === 'compact' ? 'compact' : 'expanded';
     document.body.setAttribute('data-density', dens);
-  }catch{}
+  }catch{ /* noop */ }
 }
 function applySectionOrderPref(s){
   if (!Array.isArray(s.sectionOrder) || !s.sectionOrder.length) return;
@@ -71,16 +79,20 @@ function applySectionOrderPref(s){
   const ordered = s.sectionOrder.filter(x => existing.includes(x));
   const extras  = existing.filter(x => !orderSet.has(x));
   State.sections = [...ordered, ...extras];
-  if (!State.sections.includes(State.activeSection)) State.activeSection = State.sections[0] || 'Default';
+  if (!State.sections.includes(State.activeSection)) {
+    State.activeSection = State.sections[0] || 'Default';
+  }
 }
 function applyPreferencesToStateAndUI(){
   const s = getPreferences();
   applyDensityPref(s);
   applySectionOrderPref(s);
+  // بعد تعديل ترتيب الأقسام لازم نعيد رسم الواجهة ذات الصلة
   renderSections();
   renderPatientsList();
   populateMoveTargets();
 }
+// استمع لحفظ التفضيلات من themes.js
 window.addEventListener('pr:preferences-save', (ev)=>{
   const s = ev?.detail || getPreferences();
   applyDensityPref(s);
@@ -90,7 +102,9 @@ window.addEventListener('pr:preferences-save', (ev)=>{
   populateMoveTargets();
 });
 
-// ===== Labs helpers =====
+/* ===========================================
+   Labs helpers (unchanged)
+   =========================================== */
 const LAB_REF = {
   'WBC':[4.0,11.0],'HGB':[12.0,16.0],'PLT':[150,450],'ANC':[1.5,8.0],'CRP':[0,5],
   'Albumin':[3.5,5.0],'Sodium (Na)':[135,145],'Potassium (K)':[3.5,5.1],'Chloride (Cl)':[98,107],
@@ -118,18 +132,22 @@ function abnormalSummary(labs){
   return arr.join(', ');
 }
 
-// ===== Event Bus =====
+/* ===========================================
+   Event Bus
+   =========================================== */
 const Bus = (()=>{ const m=new Map(); return {
   on(n,f){ if(!m.has(n)) m.set(n,new Set()); m.get(n).add(f); return ()=>m.get(n)?.delete(f); },
   emit(n,p){ m.get(n)?.forEach(fn=>{ try{fn(p);}catch(e){console.error('Bus',e);} }); }
 };})();
 
-// ===== Global State =====
+/* ===========================================
+   Global State
+   =========================================== */
 const State = {
   ready:false, loading:false, filter:'all', search:'',
   activeSection:'Default', sections:['Default'],
   patients:[], esas:[], ctcae:[], labs:[],
-  sel: new Set(),
+  sel: new Set(), // selection in main list
   config:{
     spreadsheetId: localStorage.getItem('pr.sheet')||'',
     bridgeUrl: localStorage.getItem('pr.bridge')||'',
@@ -138,12 +156,15 @@ const State = {
   get activePatient(){ return Patients.getActive?.()||null; }
 };
 
-// ===== UI: Sections & Patients list =====
+/* ===========================================
+   Sections + Patients list
+   =========================================== */
 function renderSections(){
   const root = q('#sections-list');
   if(!root) return;
   root.innerHTML = '';
 
+  // احسب عدد المرضى بكل قسم
   const counts = {};
   State.patients.forEach(p => {
     const sec = p.Section || 'Default';
@@ -173,9 +194,10 @@ function renderSections(){
   if (label) label.textContent = State.activeSection || 'Default';
   populateMoveTargets();
 }
+// تحديث عدّاد الأقسام
 function refreshSections(){ renderSections(); }
 
-// Symptoms → كامل بدون (+N)
+/* [PATCH-SYM] Symptoms → كامل بدون (+N) */
 function symptomsPreview(p){
   return (p['Symptoms']||'')
     .split(',').map(x=>x.trim()).filter(Boolean).join(', ');
@@ -208,6 +230,7 @@ function renderPatientsList(){
     const row=document.createElement('div'); row.className='row patient-card'; row.dataset.code=p['Patient Code']||'';
     const left=document.createElement('div');
 
+    // Header: checkbox + name + status
     const header=document.createElement('div'); header.className='row-header';
     const headLeft=document.createElement('div'); headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.style.gap='8px';
 
@@ -231,6 +254,7 @@ function renderPatientsList(){
     const dx=p['Diagnosis']?`• ${p['Diagnosis']}`:'';
     meta.textContent=`${p['Patient Age']||'—'} yrs • Room ${p['Room']||'—'} ${dx}`;
 
+    // [PATCH-UI] Today's Note = Diet (UI فقط) — يظهر فقط إذا كان معبّأ
     const diet = firstLine(p['Diet'] || '').trim();
     let noteEl = null;
     if (diet){
@@ -246,10 +270,12 @@ function renderPatientsList(){
     if (symPrev){ const chip=document.createElement('span'); chip.className='row-chip sym'; chip.textContent=symPrev; tags.appendChild(chip); }
 
     left.appendChild(header); left.appendChild(meta);
-    if (noteEl) left.appendChild(noteEl);
+    if (noteEl) left.appendChild(noteEl); // فقط عند التعبئة
     left.appendChild(tags);
 
-    const mini = document.createElement('div'); mini.className = 'mini-actions';
+    // === Mini calculator chips inside each patient card (ECOG / PPI / PPS) ===
+    const mini = document.createElement('div');
+    mini.className = 'mini-actions';
     function makeChip(label, type) {
       const b = document.createElement('button');
       b.className = 'btn-chip';
@@ -262,24 +288,27 @@ function renderPatientsList(){
     mini.appendChild(makeChip('PPI',  'ppi'));
     mini.appendChild(makeChip('PPS',  'pps'));
     left.appendChild(mini);
+    // === /mini chips ===
 
     const right=document.createElement('div'); right.innerHTML='<span class="mono muted">'+(p['Patient Code']||'')+'</span>';
 
     row.appendChild(left); row.appendChild(right);
 
+    // فتح المودال عند الضغط على الاسم
     name.addEventListener('click',(e)=>{
       e.stopPropagation();
       Patients.setActiveByCode?.(p['Patient Code']);
       openDashboardFor(p['Patient Code'], true);
     });
 
-    q('#patients-list').appendChild(row);
+    // إدراج الصف
+    list.appendChild(row);
 
-    // Staggered slide-in
+    // [PATCH-UI] Staggered slide-in animation
     row.style.opacity = '0';
     row.style.transform = 'translateY(8px)';
-    row.style.transition = 'opacity 220ms ease, transform 220ms ease';
-    const delay = 40 + (idx * 45);
+    row.style.transition = 'opacity calc(220ms*var(--motion-multiplier,1)) ease, transform calc(220ms*var(--motion-multiplier,1)) ease';
+    const delay = 40 + (idx * 45 * Number(localStorage.getItem('pr.motion')||'1'));
     setTimeout(()=>{ row.style.opacity='1'; row.style.transform='translateY(0)'; }, delay);
   });
   updateBulkBarState();
@@ -291,7 +320,209 @@ function updateBulkBarState(){
   });
 }
 
-// ===== Export Modal (robust) =====
+/* ===========================================
+   Populate move targets for export/move dropdowns
+   =========================================== */
+function populateMoveTargets(){
+  const sections = State.sections || ['Default'];
+  const s1 = q('#plist-move-target'); if (s1){
+    s1.innerHTML=''; sections.forEach(sec=>{ const o=document.createElement('option'); o.value=sec; o.textContent=sec; s1.appendChild(o); });
+    s1.value = State.activeSection || sections[0];
+  }
+  const s2 = q('#export-move-target'); if (s2){
+    s2.innerHTML=''; sections.forEach(sec=>{ const o=document.createElement('option'); o.value=sec; o.textContent=sec; s2.appendChild(o); });
+    s2.value = State.activeSection || sections[0];
+  }
+}
+
+/* ===========================================
+   Dashboard binding (write-through)
+   =========================================== */
+const PATIENT_FIELDS = new Set([
+  'Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Diagnosis','Diet','Isolation','Comments',
+  'Section','Done','Updated At','HPI Diagnosis','HPI Previous','HPI Current','HPI Initial','Patient Assessment','Medication List','Latest Notes',
+  'Symptoms','Symptoms Notes','Labs Abnormal'
+]);
+const FIELD_FALLBACK_BY_ID = {
+  'hpi-diagnosis':      'HPI Diagnosis',
+  'hpi-initial':        'HPI Initial',
+  'hpi-previous':       'HPI Previous',
+  'hpi-current':        'HPI Current',
+  'patient-assessment': 'Patient Assessment',
+  'medication-list':    'Medication List',
+  'latest-notes':       'Latest Notes'
+};
+function normalizeLabelToField(labelText){
+  if (!labelText) return '';
+  const t = String(labelText).trim();
+  if (/^cause of admission$/i.test(t)) return 'HPI Diagnosis';
+  if (/^name$/i.test(t) || /^patient name$/i.test(t)) return 'Patient Name';
+  if (/^age$/i.test(t)  || /^patient age$/i.test(t)) return 'Patient Age';
+  if (/^room$/i.test(t)) return 'Room';
+  if (/^diagnosis$/i.test(t)) return 'Diagnosis';
+  if (/^admitting provider$/i.test(t)) return 'Admitting Provider';
+  if (/^diet$/i.test(t)) return 'Diet';
+  if (/^isolation$/i.test(t)) return 'Isolation';
+  if (/^comments?$/i.test(t)) return 'Comments';
+  if (PATIENT_FIELDS.has(t)) return t;
+  return '';
+}
+function getElementValue(el){
+  if (!el) return '';
+  if (el.matches('[contenteditable="true"], [contenteditable=""]')) return el.textContent ?? '';
+  if ('value' in el) return el.value ?? '';
+  return el.textContent ?? '';
+}
+function ensureModalFieldBindings(modal){
+  qa('input, textarea, select, [contenteditable="true"]', modal).forEach(el=>{
+    if (el.dataset && el.dataset.bindField) return;
+    let field = '';
+    const wrapper = el.closest('.field') || el.closest('label.field');
+    const lab = wrapper ? wrapper.querySelector('.label') : null;
+    if (lab) field = normalizeLabelToField(lab.textContent);
+    if (!field && el.getAttribute) {
+      const nm = el.getAttribute('name'); const id = el.id;
+      if (nm && PATIENT_FIELDS.has(nm)) field = nm;
+      else if (id && FIELD_FALLBACK_BY_ID[id]) field = FIELD_FALLBACK_BY_ID[id];
+      else if (id && PATIENT_FIELDS.has(id)) field = id;
+    }
+    if (field) el.dataset.bindField = field;
+  });
+}
+let dashboardFieldBindingDone = false;
+const debouncedWrites = new WeakMap();
+function writeFieldDebounced(code, field, el){
+  if (!debouncedWrites.has(el)) {
+    debouncedWrites.set(el, Utils.debounce(async ()=>{
+      const value = getElementValue(el).toString();
+      try{
+        await Sheets.writePatientField(code, field, value);
+        const idx = State.patients.findIndex(p=>p['Patient Code']===code);
+        if (idx>=0) State.patients[idx][field] = value;
+      }catch(err){
+        console.error(err);
+        toast(`Failed to save ${field}.`, 'danger');
+      }
+    }, 350));
+  }
+  debouncedWrites.get(el)();
+}
+function bindDashboardFieldSyncOnce(){
+  if (dashboardFieldBindingDone) return;
+  dashboardFieldBindingDone = true;
+  document.addEventListener('input', (e)=>{
+    const modal = q('#patient-modal'); if (!modal || modal.classList.contains('hidden')) return;
+    const t = e.target; if (!t) return;
+    ensureModalFieldBindings(modal);
+    let field = t.dataset && t.dataset.bindField;
+    if (!field && t.id && FIELD_FALLBACK_BY_ID[t.id]) field = FIELD_FALLBACK_BY_ID[t.id];
+    if (!field) return;
+    const code = modal.dataset.code || (State.activePatient && State.activePatient['Patient Code']);
+    if (!code) return;
+    writeFieldDebounced(code, field, t);
+  }, true);
+  ['change','blur'].forEach(ev=>{
+    document.addEventListener(ev, (e)=>{
+      const modal = q('#patient-modal'); if (!modal || modal.classList.contains('hidden')) return;
+      const t = e.target; if (!t) return;
+      ensureModalFieldBindings(modal);
+      let field = t.dataset && t.dataset.bindField;
+      if (!field && t.id && FIELD_FALLBACK_BY_ID[t.id]) field = FIELD_FALLBACK_BY_ID[t.id];
+      if (!field) return;
+      const code = modal.dataset.code || (State.activePatient && State.activePatient['Patient Code']);
+      if (!code) return;
+      const value = getElementValue(t).toString();
+      Sheets.writePatientField(code, field, value)
+        .then(()=>{
+          const idx = State.patients.findIndex(p=>p['Patient Code']===code);
+          if (idx>=0) State.patients[idx][field] = value;
+        })
+        .catch(err=>{ console.error(err); toast(`Failed to save ${field}.`, 'danger'); });
+    }, true);
+  });
+}
+function openDashboardFor(code, asModal=false){
+  const patient = State.patients.find(p=>p['Patient Code']===code);
+  if (!patient) return;
+  Patients.setActiveByCode?.(code);
+  const pm = q('#patient-modal'); if (pm) pm.dataset.code = code;
+  const t=q('#dashboard-title'); if (t) t.textContent=`Dashboard — ${patient['Patient Name']||code}`;
+  const mt=q('#patient-modal-title'); if (mt) mt.textContent=patient['Patient Name']||code;
+  Dashboard.bindPatient(patient, {
+    esas: ESAS.getForPatient(code, State.esas),
+    ctcae: CTCAE.getForPatient(code, State.ctcae),
+    labs: Labs.getForPatient(code, State.labs)
+  });
+  const sData = {
+    symptoms: (patient['Symptoms']||'').split(',').map(x=>x.trim()).filter(Boolean),
+    notes: safeJSON(patient['Symptoms Notes']||'{}')
+  };
+  Symptoms.render(code, sData);
+  const panel=q('#dashboard-panel'); if (panel) panel.dataset.empty='false';
+  Sheets.writePatientField(code,'Updated At',new Date().toISOString()).catch(()=>{});
+  bindDashboardFieldSyncOnce();
+  if (pm) ensureModalFieldBindings(pm);
+  if (asModal) openPatientModal();
+}
+const safeJSON = s => { try{return JSON.parse(s);}catch{return{};} };
+
+/* ===========================================
+   Mobile UI (sidebar toggle + scrim + FAB)
+   =========================================== */
+function setupMobileUI(){
+  if (window.__mobileSetupDone) return;         // قفل لمنع التكرار
+  window.__mobileSetupDone = true;
+
+  const topbar = q('#topbar');
+
+  // زر الهامبرغر (يُحقن تلقائياً ولا يحتاج تعديل في index.html)
+  if (topbar && !q('#btn-toggle-sidebar', topbar)) {
+    const btn = document.createElement('button');
+    btn.id = 'btn-toggle-sidebar';
+    btn.className = 'icon-btn mobile-only';
+    btn.setAttribute('aria-label','Menu');
+    btn.innerHTML = '☰';
+    topbar.insertBefore(btn, topbar.firstChild);
+  }
+
+  // Scrim للخلفية عند فتح السايدبار
+  if (!q('#sidebar-scrim')) {
+    const s = document.createElement('div');
+    s.id = 'sidebar-scrim';
+    s.className = 'scrim';
+    document.body.appendChild(s);
+  }
+
+  const open  = ()=> document.body.classList.add('sidebar-open');
+  const close = ()=> document.body.classList.remove('sidebar-open');
+  const toggle= ()=> document.body.classList.toggle('sidebar-open');
+
+  q('#btn-toggle-sidebar')?.addEventListener('click', toggle);
+  q('#sidebar-scrim')?.addEventListener('click', close);
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') close(); });
+
+  // إغلاق السايدبار بعد اختيار قسم
+  document.addEventListener('click', e=>{
+    if (!document.body.classList.contains('sidebar-open')) return;
+    if (e.target.closest('#sections-list .pill')) close();
+  });
+
+  // عند الرجوع لديسكتوب (>980px) أغلق السايدبار
+  const mq = window.matchMedia('(min-width: 981px)');
+  const onChange = ()=>{ if (mq.matches) close(); };
+  mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange);
+  onChange();
+
+  // FAB = نفس زر + New Patient
+  q('#fab-add')?.addEventListener('click', ()=>{
+    q('#btn-new-patient')?.click();
+  });
+}
+
+/* ===========================================
+   Export Modal (robust) + list rendering
+   =========================================== */
+// [PATCH-EXP] ensure export modal exists (auto-create if missing)
 function ensureExportModal(){
   if (q('#export-modal')) return;
 
@@ -308,19 +539,33 @@ function ensureExportModal(){
           <button id="btn-export-clear" class="btn">Clear</button>
           <select id="export-move-target" class="pselect"></select>
           <button id="btn-export-move" class="btn">Move</button>
-          <button id="btn-export-close" class="btn">Close</button>
+          <button id="btn-export-close" class="btn" data-close-modal="export-modal">Close</button>
         </div>
       </div>
       <div class="modal-body modal-body-pad">
         <div id="export-list"></div>
       </div>
       <div class="modal-footer">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+          <label class="field" style="max-width:120px">
+            <span class="label">Scale %</span>
+            <input id="export-scale" type="number" class="pinput" min="50" max="100" value="100"/>
+          </label>
+          <label class="field" style="max-width:120px">
+            <span class="label">Font px</span>
+            <input id="export-font" type="number" class="pinput" min="10" max="16" value="12"/>
+          </label>
+          <label class="checkbox">
+            <input id="export-fit-one" type="checkbox"/>
+            <span>Fit one page/section</span>
+          </label>
+        </div>
+        <div style="flex:1"></div>
         <button id="btn-export-print-footer" class="btn btn-primary">Print</button>
       </div>
     </div>`;
   document.body.appendChild(wrap);
 }
-
 function openExportModal(){
   ensureExportModal();
   const modal = q('#export-modal');
@@ -348,12 +593,14 @@ function renderExportList(){
   const root = q('#export-list'); if (!root) return;
   root.innerHTML = '';
   const pats = getPatientsForExportFiltered();
+
   const bySec = new Map();
   pats.forEach(p=>{
     const sec = p.Section || 'Default';
     if (!bySec.has(sec)) bySec.set(sec, []);
     bySec.get(sec).push(p);
   });
+
   const secs = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
   secs.forEach(sec=>{
     const list = bySec.get(sec) || [];
@@ -433,15 +680,15 @@ function renderExportList(){
   }
 }
 
-// Helper: first two lines of Cause Of Admission for printing
+/* ===========================================
+   Print helpers & page builder
+   =========================================== */
 function firstLines(text, n=2){
   const s = String(text == null ? '' : text);
   if (!s) return '';
   const lines = s.split(/\r?\n/).slice(0, n);
   return lines.join('\n');
 }
-
-// Print pages builder (A4, force one page per section)
 const A4_CONTENT_HEIGHT_PX = 1030;
 const HEAD_EST = 60;
 const ROW_EST_FACTOR = 2.2;
@@ -552,13 +799,17 @@ function buildPrintPagesHTML(selectedCodes, options){
   return pages.join('\n');
 }
 
+/* ===========================================
+   Print render & window.print (SINGLE definition)
+   =========================================== */
+// [IMPORTANT FIX] لا تكرار لتعريف هذه الدالة — هذا هو التعريف الوحيد
 function renderPrintRootAndPrint(){
   const root = q('#print-root'); if (!root) { toast('Print root missing.','danger'); return; }
   const selected = Array.from(ExportSel.values());
   const scale = Math.max(50, Math.min(100, parseInt(q('#export-scale')?.value || '100', 10) || 100));
   const fontPx = parseInt(q('#export-font')?.value || '12', 10) || 12;
   const fitOne = !!q('#export-fit-one')?.checked;
-  // نجبر صفحة واحدة لكل قسم
+  // نجبر صفحة واحدة لكل قسم إذا تم اختيار fitOne
   root.innerHTML = buildPrintPagesHTML(selected, { scalePercent: scale, fontPx, fitOne: true });
   root.style.display = '';
   document.body.setAttribute('data-printing','true');
@@ -569,10 +820,14 @@ function renderPrintRootAndPrint(){
   }, 500);
 }
 
-// Wire modal buttons for export
+/* ===========================================
+   Export modal events (delegation)
+   =========================================== */
+// [PATCH-EXP] Wire modal buttons for export (delegated)
 document.addEventListener('click', async (e)=>{
   const inModal = !!e.target.closest('#export-modal');
   if (!inModal) return;
+
   if (e.target.closest('#btn-export-select-all')){
     getPatientsForExportFiltered().forEach(p=> ExportSel.add(p['Patient Code']));
     renderExportList();
@@ -604,11 +859,13 @@ document.addEventListener('input', (e)=>{
   }
 });
 
-// ===== Bind UI =====
+/* ===========================================
+   Bind top-level UI / actions
+   =========================================== */
 function bindUI(){
   UI.init?.(Bus);
 
-  // ربط أزرار التصدير المتعددة الأسماء
+  // [PATCH-EXP] ربط أزرار التصدير المتعددة الأسماء
   const exportButtons = [
     '#btn-export',
     '#btn-export-patient-list',
@@ -630,23 +887,26 @@ function bindUI(){
       updateBulkBarState();
     });
   });
-
-  // Calculators
+  
+  // Calculators open buttons
   q('#open-ecog')?.addEventListener('click', () => Calculators.openECOG());
   q('#open-opioid')?.addEventListener('click', () => Calculators.openOpioid());
   q('#open-ppi')?.addEventListener('click', () => Calculators.openPPI());
   q('#open-pps')?.addEventListener('click', () => Calculators.openPPS());
 
-  // Launch per-patient calculators from card chips
+  // Launch per-patient calculators from card chips (lightweight)
   document.body.addEventListener('click', (e) => {
     const btn = e.target.closest('.btn-chip[data-calc]');
     if (!btn) return;
+
     const code = btn.dataset.code || '';
     if (code) {
+      // ثبّت المريض النشط
       Patients.setActiveByCode?.(code);
       const pm = q('#patient-modal');
       if (pm) pm.dataset.code = code;
     }
+
     const type = btn.dataset.calc;
     if (type === 'ecog') return Calculators.openECOG();
     if (type === 'ppi')  return Calculators.openPPI();
@@ -660,9 +920,7 @@ function bindUI(){
     renderPatientsList();
   }, 200));
 
-  // Sections CRUD ...
-  // (باقي الأحداث كما كانت—بدون تغيير)
-  // -- Add/Rename/Delete sections
+  // Sections CRUD
   q('#btn-add-section')?.addEventListener('click', async ()=>{
     const name=prompt('New section name')||''; if(!name.trim()) return;
     if (State.sections.includes(name)) return toast('Section name already exists.','warn');
@@ -701,7 +959,7 @@ function bindUI(){
       toast('Section deleted and patients moved to “Default”.','success');
     }catch{ toast('Failed to delete section.','danger'); }
   });
-
+  
   // New patient
   q('#btn-new-patient')?.addEventListener('click', async ()=>{
     try{
@@ -786,7 +1044,7 @@ function bindUI(){
   // Refresh
   q('#btn-refresh')?.addEventListener('click', async ()=>{ await loadAllFromSheets(); toast('Data refreshed.','success'); });
 
-  // Close modals
+  // Close modals (generic)
   qa('[data-close-modal]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id=btn.getAttribute('data-close-modal'); if(!id) return;
@@ -794,39 +1052,48 @@ function bindUI(){
       if (id==='patient-modal') document.documentElement.style.overflow='';
     });
   });
-
+  
   // All Summaries
-  q('#open-summaries')?.addEventListener('click', () => { Summaries.open(); });
-
-  // Settings
+  q('#open-summaries')?.addEventListener('click', () => {
+    Summaries.open();
+  });
+  
+  // Settings open via delegation
   document.addEventListener('click', (e)=>{
     const t=e.target.closest('#open-settings'); if(!t) return;
     e.preventDefault();
     q('#set-spreadsheet-id').value = State.config.spreadsheetId;
     q('#set-bridge-url').value     = State.config.bridgeUrl;
     q('#set-ai-endpoint').value    = State.config.aiEndpoint;
+    // NEW: set current motion value into the select
     const motion = localStorage.getItem('pr.motion') || '1';
-    const sel = q('#set-motion-speed'); if (sel) sel.value = motion;
+    const sel = q('#set-motion-speed');
+    if (sel) sel.value = motion;
     q('#settings-modal')?.classList.remove('hidden');
   });
 
+  // Save settings
   q('#btn-settings-save')?.addEventListener('click', async ()=>{
     State.config.spreadsheetId = q('#set-spreadsheet-id').value.trim();
     State.config.bridgeUrl     = q('#set-bridge-url').value.trim();
     State.config.aiEndpoint    = q('#set-ai-endpoint').value.trim();
+
+    // NEW: motion speed
     const motionVal = (q('#set-motion-speed')?.value || '1').trim() || '1';
     localStorage.setItem('pr.motion', motionVal);
     document.documentElement.style.setProperty('--motion-multiplier', motionVal);
+
     localStorage.setItem('pr.sheet',  State.config.spreadsheetId);
     localStorage.setItem('pr.bridge', State.config.bridgeUrl);
     localStorage.setItem('pr.ai',     State.config.aiEndpoint);
     q('#settings-modal')?.classList.add('hidden');
-    setupMobileUI();
+
+    setupMobileUI();               // تأكد من تفعيل الموبايل بعد أي تعديل
     await loadAllFromSheets();
     toast('Settings saved. Reconnected.','success');
   });
 
-  // Delete single patient in modal
+  // Delete patient (single) inside patient modal
   document.addEventListener('click', async (e)=>{
     const btn=e.target.closest('#btn-delete-patient'); if(!btn) return;
     const modal=q('#patient-modal'); const code=modal?.dataset.code;
@@ -850,7 +1117,9 @@ function bindUI(){
 }
 document.addEventListener('DOMContentLoaded', bindUI);
 
-// ===== Load Sheets =====
+/* ===========================================
+   Load from Sheets
+   =========================================== */
 async function loadAllFromSheets(){
   State.loading=true;
   try{
@@ -864,6 +1133,7 @@ async function loadAllFromSheets(){
     if (!data.sections?.length) await Sheets.ensureSection('Default');
     if (!State.sections.includes(State.activeSection)) State.activeSection = State.sections[0] || 'Default';
 
+    // === Apply preferences after pulling sections from Sheets ===
     const prefs = getPreferences();
     applyDensityPref(prefs);
     applySectionOrderPref(prefs);
@@ -879,7 +1149,9 @@ async function loadAllFromSheets(){
   }
 }
 
-// ===== Modal open/close (patient) =====
+/* ===========================================
+   Patient modal open/close
+   =========================================== */
 function openPatientModal(){
   const m=q('#patient-modal'); if (!m) return;
   m.classList.remove('hidden');
@@ -893,24 +1165,9 @@ function closePatientModal(){
   document.documentElement.style.overflow='';
 }
 
-// ===== Print Root =====
-function renderPrintRootAndPrint(){
-  const root = q('#print-root'); if (!root) { toast('Print root missing.','danger'); return; }
-  const selected = Array.from(ExportSel.values());
-  const scale = Math.max(50, Math.min(100, parseInt(q('#export-scale')?.value || '100', 10) || 100));
-  const fontPx = parseInt(q('#export-font')?.value || '12', 10) || 12;
-  const fitOne = !!q('#export-fit-one')?.checked;
-  root.innerHTML = buildPrintPagesHTML(selected, { scalePercent: scale, fontPx, fitOne: true });
-  root.style.display = '';
-  document.body.setAttribute('data-printing','true');
-  window.print();
-  setTimeout(()=>{
-    document.body.removeAttribute('data-printing');
-    root.style.display='none';
-  }, 500);
-}
-
-// ===== Public Entry =====
+/* ===========================================
+   Public Entry
+   =========================================== */
 export const App = {
   async init(){
     applyMotionSpeedFromStorage();
@@ -918,6 +1175,7 @@ export const App = {
     await loadAllFromSheets();
     State.ready=true;
   },
+  // [PATCH] Backward-compat alias
   async start(){ return this.init(); },
   bus: Bus,
   state: State
