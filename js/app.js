@@ -4,6 +4,7 @@
 // + Export Patient List with print scaling (scale/font/fit-one) and custom columns
 // + Robust write-through for text fields
 // [PATCH] Backward-compat: add App.start() alias to App.init() to fix callers using App.start()
+// [PATCH-UI] Show Today's Note (Diet) on patient cards + staggered slide-in animation
 
 import { Sheets } from './sheets.js';
 import { Patients } from './patients.js';
@@ -187,6 +188,16 @@ function symptomsPreview(p){
   const s=(p['Symptoms']||'').split(',').map(x=>x.trim()).filter(Boolean);
   return s.length? s.slice(0,3).join(', ')+(s.length>3?` (+${s.length-3})`:'') : '';
 }
+
+// [PATCH-UI] Helper: First line of Today's Note (Diet)
+function firstLine(s){
+  const t = String(s == null ? '' : s);
+  if (!t) return '';
+  const ln = t.split(/\r?\n/)[0] || '';
+  // قص بسيط حتى لا تطول البطاقة بشكل مبالغ فيه
+  return ln.length > 240 ? (ln.slice(0,237) + '…') : ln;
+}
+
 function getFilteredPatients(){
   const s=State.search.toLowerCase().trim(), f=State.filter;
   const inSec=p=>(p.Section||'Default')===State.activeSection;
@@ -201,7 +212,7 @@ function renderPatientsList(){
     const d=document.createElement('div'); d.className='empty small'; d.style.padding='16px'; d.textContent='No patients in this view.'; list.appendChild(d);
     return;
   }
-  items.forEach(p=>{
+  items.forEach((p, idx)=>{
     const labsRec = Labs.getForPatient(p['Patient Code'], State.labs);
     const labsAbn = p['Labs Abnormal'] || abnormalSummary(labsRec);
     const symPrev = symptomsPreview(p);
@@ -230,14 +241,28 @@ function renderPatientsList(){
     header.appendChild(headLeft); header.appendChild(badge);
 
     const meta=document.createElement('div'); meta.className='row-sub';
-    const dx=p['Diagnosis']?`• ${p['Diagnosis']}`:''; meta.textContent=`${p['Patient Age']||'—'} yrs • Room ${p['Room']||'—'} ${dx}`;
+    const dx=p['Diagnosis']?`• ${p['Diagnosis']}`:'';
+    meta.textContent=`${p['Patient Age']||'—'} yrs • Room ${p['Room']||'—'} ${dx}`;
+
+    // [PATCH-UI] Today's Note (Diet) — يظهر فقط إذا مُعبّأ
+    const diet = firstLine(p['Diet'] || '').trim();
+    let noteEl = null;
+    if (diet){
+      noteEl = document.createElement('div');
+      noteEl.className = 'row-sub';      // نفس ستايل السطر الرمادي
+      noteEl.textContent = diet;         // أول سطر فقط
+      noteEl.style.marginTop = '4px';
+    }
 
     const tags=document.createElement('div'); tags.className='row-tags';
     const sectionPill=document.createElement('span'); sectionPill.className='row-tag'; sectionPill.textContent=p['Section']||'Default'; tags.appendChild(sectionPill);
     if (labsAbn){ const chip=document.createElement('span'); chip.className='row-chip abn'; chip.textContent=labsAbn; tags.appendChild(chip); }
     if (symPrev){ const chip=document.createElement('span'); chip.className='row-chip sym'; chip.textContent=symPrev; tags.appendChild(chip); }
 
-    left.appendChild(header); left.appendChild(meta); left.appendChild(tags);
+    left.appendChild(header);
+    left.appendChild(meta);
+    if (noteEl) left.appendChild(noteEl); // [PATCH-UI] أضفنا Today's Note إن وُجد
+    left.appendChild(tags);
 
     // === Mini calculator chips inside each patient card (ECOG / PPI / PPS) ===
     const mini = document.createElement('div');
@@ -268,6 +293,18 @@ function renderPatientsList(){
     });
 
     list.appendChild(row);
+
+    // [PATCH-UI] Staggered slide-in animation لكل بطاقة
+    try{
+      row.style.opacity = '0';
+      row.style.transform = 'translateY(8px)';
+      row.style.transition = 'opacity 220ms ease, transform 220ms ease';
+      const delay = 40 + (idx * 45); // تدرّج لطيف
+      setTimeout(()=>{
+        row.style.opacity = '1';
+        row.style.transform = 'translateY(0)';
+      }, delay);
+    }catch{ /* no-op */ }
   });
   updateBulkBarState();
 }
