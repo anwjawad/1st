@@ -47,7 +47,7 @@
   --radius:18px; --radius-sm:12px; --radius-xs:10px;
   --gap:14px;
 
-  /* ===== Motion control (new) ===== */
+  /* ===== Motion control ===== */
   --motion-multiplier: 1;
   --ease-default: cubic-bezier(.2,.7,.2,1);
   --t-fast:160ms; --t-med:220ms; --t-slow:320ms;
@@ -57,12 +57,12 @@
   --speed-med:  calc(var(--t-med)  * var(--motion-multiplier)) var(--ease-default);
   --speed-slow: calc(var(--t-slow) * var(--motion-multiplier)) var(--ease-default);
 
-  /* Print */
-  --print-head-bg:#eee;
-
   /* Scrollbar */
   --scroll-track: rgba(255,255,255,.06);
   --scroll-thumb: rgba(255,255,255,.22);
+
+  /* Print */
+  --print-head-bg:#eee;
 }
 
 /* --- Ocean theme --- */
@@ -137,7 +137,7 @@ a{ color:inherit; text-decoration:none }
 #topbar .ops{ display:flex; gap:8px; flex-wrap:wrap }
 #topbar .ops .btn{ padding:8px 10px }
 
-/* ===== Sidebar / Sections ===== */
+/* ===== Columns / Sidebar ===== */
 #columns{ display:grid; grid-template-columns: 280px 1fr; gap:14px; padding:14px; }
 .sidebar{ position: sticky; top:58px; align-self:start; display:grid; gap:12px; }
 .sections{display:flex; flex-direction:column; gap:8px}
@@ -145,6 +145,7 @@ a{ color:inherit; text-decoration:none }
 .pill{
   background:var(--glass); color:var(--text);
   border:1px solid var(--border); padding:10px 12px; border-radius:12px; cursor:pointer; text-align:left;
+  transition: background-color var(--speed-med), border-color var(--speed-med), transform var(--speed-fast), box-shadow var(--speed-slow);
 }
 .pill:hover{ border-color: var(--primary); transform: translateY(-1px); box-shadow: 0 10px 28px rgba(0,0,0,.25) }
 .pill.active{
@@ -161,7 +162,11 @@ a{ color:inherit; text-decoration:none }
 }
 
 /* ===== Buttons ===== */
-.btn{ background:var(--glass); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:10px 12px; cursor:pointer; transition: box-shadow var(--speed-fast), transform var(--speed-fast), background-color var(--speed-med), border-color var(--speed-med); }
+.btn{
+  background:var(--glass); color:var(--text); border:1px solid var(--border);
+  border-radius:12px; padding:10px 12px; cursor:pointer;
+  transition: box-shadow var(--speed-fast), transform var(--speed-fast), background-color var(--speed-med), border-color var(--speed-med);
+}
 .btn:hover{ transform: translateY(-1px); box-shadow: var(--shadow-1); }
 .btn:active{ transform: translateY(0); }
 .btn-primary{ background: linear-gradient(135deg, var(--primary), var(--primary-2)); color:white; border-color: transparent; }
@@ -194,16 +199,11 @@ a{ color:inherit; text-decoration:none }
 .row-chip.abn{background: color-mix(in oklab, var(--danger) 12%, var(--glass))}
 .row-chip.sym{background: color-mix(in oklab, var(--primary) 12%, var(--glass))}
 
-/* Hover على الكارد */
-.patient-card {
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-.patient-card:hover {
-  transform: translateY(-3px) scale(1.01);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
-}
+/* Hover */
+.patient-card { transition: transform 0.25s ease, box-shadow 0.25s ease; }
+.patient-card:hover { transform: translateY(-3px) scale(1.01); box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
 
-/* ===== Filters / Tabs ===== */
+/* ===== Tabs ===== */
 .tabs{ display:flex; gap:8px; flex-wrap:wrap; }
 .tabs .tab{ background:var(--glass); border:1px solid var(--border); border-radius:12px; padding:8px 10px; cursor:pointer; transition: background-color var(--speed-fast), transform var(--speed-fast) }
 .tabs .tab.active{ background: color-mix(in oklab, var(--primary) 14%, var(--glass)); transform: translateY(-1px) }
@@ -228,12 +228,7 @@ a{ color:inherit; text-decoration:none }
 
 /* ESAS/CTCAE/Labs/Symptoms grids */
 .grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:10px }
-.score-item{
-  background: var(--glass);
-  border:1px solid var(--border);
-  border-radius: 12px;
-  padding:8px 10px;
-}
+.score-item{ background: var(--glass); border:1px solid var(--border); border-radius: 12px; padding:8px 10px; }
 .score-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .score-title{ font-weight:700 }
 .score-select{ display:flex; flex-wrap:wrap; gap:4px; }
@@ -327,7 +322,7 @@ a{ color:inherit; text-decoration:none }
   }
   body.sidebar-open .scrim{ display:block }
 
-  /* FAB: زر إضافة مريض ع الموبايل */
+  /* FAB */
   .fab{
     position: fixed; right:16px; bottom:16px;
     width:56px; height:56px; border-radius:50%;
@@ -341,57 +336,20 @@ a{ color:inherit; text-decoration:none }
 }
 
 /* ===== Animations helpers ===== */
-@keyframes fadeInUp{
-  from { opacity:0; transform: translateY(8px); }
-  to   { opacity:1; transform: translateY(0); }
+@keyframes slideIn{
+  from{ transform: translateY(6px); opacity:0 }
+  to  { transform: translateY(0);   opacity:1 }
 }
-@keyframes fadeIn{
-  from{ opacity:0 } to { opacity:1 }
+@keyframes pulseFade{
+  0%,100%{ opacity: .9 } 50%{ opacity: 1 }
 }
 
 /* Smooth fade/slide عند تغيّر الأقسام */
-#patients-list {
-  transition: opacity var(--speed-med), transform var(--speed-med);
-}
-#patients-list.enter {
-  opacity: 0;
-  transform: translateY(8px);
-}
-#patients-list.enter-active {
-  opacity: 1;
-  transform: translateY(0);
-}
+#patients-list { transition: opacity var(--speed-med), transform var(--speed-med); }
+#patients-list.enter { opacity: 0; transform: translateY(8px); }
+#patients-list.enter-active { opacity: 1; transform: translateY(0); }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce){
-   /* === Reinforce transitions & mobile animations === */
-:root {
-  --motion-multiplier: var(--motion-multiplier, 1);
-  --motion-duration: calc(0.25s * var(--motion-multiplier));
-  --motion-slow: calc(0.45s * var(--motion-multiplier));
-}
-
-/* مودالات */
-.modal:not(.hidden) .modal-card {
-  transform: translateY(0);
-  opacity: 1;
-  transition: transform var(--motion-slow) ease, opacity var(--motion-slow) ease;
-}
-.modal.hidden .modal-card {
-  transform: translateY(-20px);
-}
-
-#patients-list {
-  transition: opacity var(--motion-duration) ease, transform var(--motion-duration) ease;
-}
-#patients-list.enter {
-  opacity: 0;
-  transform: translateY(8px);
-}
-#patients-list.enter-active {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-  .scrim{ backdrop-filter:none; }
+  * { animation: none !important; transition: none !important; }
 }
