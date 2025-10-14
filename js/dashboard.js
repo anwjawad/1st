@@ -57,16 +57,26 @@ export const Dashboard = {
     // تعبئة البايوغرافيا
     const bioGrid = document.getElementById('bio-grid');
     bioGrid.innerHTML = '';
+    // تعديل: استبدال تسمية "Diet" بـ "Diagnosis" في واجهة المودال فقط
+    // مع ربط الحقل مباشرة بحقل Diagnosis وتجنّب التكرار إن وُجد "Diagnosis" أصلاً.
+    const rendered = new Set();
     BIO_FIELDS.forEach(f => {
+      const key = (f === 'Diet') ? 'Diagnosis' : f; // التسمية + الربط
+      if (rendered.has(key)) return; // لا تكرار لنفس الحقل (مثلاً Diagnosis)
+      rendered.add(key);
+
       const div = document.createElement('div');
       div.className = 'field';
+
       const label = document.createElement('span');
       label.className = 'label';
-      label.textContent = f;
+      label.textContent = key; // نعرض Diagnosis بدل Diet
+
       const inp = document.createElement('input');
       inp.type = 'text';
-      inp.value = patient[f] || '';
-      inp.setAttribute('data-bind-field', f);
+      inp.value = patient[key] || '';
+      inp.setAttribute('data-bind-field', key); // الربط إلى Diagnosis مباشرة
+
       div.appendChild(label);
       div.appendChild(inp);
       bioGrid.appendChild(div);
