@@ -5,6 +5,7 @@
 // + Robust write-through for text fields
 // [PATCH] Backward-compat: add App.start() alias to App.init() to fix callers using App.start()
 // [PATCH-UI] Show Today's Note (Diet) on patient cards + staggered slide-in animation
+// [PATCH-SYM] Show ALL symptoms on patient cards (no +N truncation)
 
 import { Sheets } from './sheets.js';
 import { Patients } from './patients.js';
@@ -184,9 +185,13 @@ function refreshSections(){
   renderSections();
 }
 
+// [PATCH-SYM] عرض كل الأعراض دون اختصار
 function symptomsPreview(p){
-  const s=(p['Symptoms']||'').split(',').map(x=>x.trim()).filter(Boolean);
-  return s.length? s.slice(0,3).join(', ')+(s.length>3?` (+${s.length-3})`:'') : '';
+  const arr = (p['Symptoms']||'')
+    .split(',')
+    .map(x=>x.trim())
+    .filter(Boolean);
+  return arr.join(', ');
 }
 
 // [PATCH-UI] Helper: First line of Today's Note (Diet)
@@ -194,7 +199,6 @@ function firstLine(s){
   const t = String(s == null ? '' : s);
   if (!t) return '';
   const ln = t.split(/\r?\n/)[0] || '';
-  // قص بسيط حتى لا تطول البطاقة بشكل مبالغ فيه
   return ln.length > 240 ? (ln.slice(0,237) + '…') : ln;
 }
 
@@ -249,8 +253,8 @@ function renderPatientsList(){
     let noteEl = null;
     if (diet){
       noteEl = document.createElement('div');
-      noteEl.className = 'row-sub';      // نفس ستايل السطر الرمادي
-      noteEl.textContent = diet;         // أول سطر فقط
+      noteEl.className = 'row-sub';
+      noteEl.textContent = diet;
       noteEl.style.marginTop = '4px';
     }
 
@@ -261,10 +265,10 @@ function renderPatientsList(){
 
     left.appendChild(header);
     left.appendChild(meta);
-    if (noteEl) left.appendChild(noteEl); // [PATCH-UI] أضفنا Today's Note إن وُجد
+    if (noteEl) left.appendChild(noteEl);
     left.appendChild(tags);
 
-    // === Mini calculator chips inside each patient card (ECOG / PPI / PPS) ===
+    // mini calculator chips
     const mini = document.createElement('div');
     mini.className = 'mini-actions';
     function makeChip(label, type) {
@@ -279,13 +283,11 @@ function renderPatientsList(){
     mini.appendChild(makeChip('PPI',  'ppi'));
     mini.appendChild(makeChip('PPS',  'pps'));
     left.appendChild(mini);
-    // === /mini chips ===
 
     const right=document.createElement('div'); right.innerHTML='<span class="mono muted">'+(p['Patient Code']||'')+'</span>';
 
     row.appendChild(left); row.appendChild(right);
 
-    // فتح المودال عند الضغط على الاسم
     name.addEventListener('click',(e)=>{
       e.stopPropagation();
       Patients.setActiveByCode?.(p['Patient Code']);
@@ -299,7 +301,7 @@ function renderPatientsList(){
       row.style.opacity = '0';
       row.style.transform = 'translateY(8px)';
       row.style.transition = 'opacity 220ms ease, transform 220ms ease';
-      const delay = 40 + (idx * 45); // تدرّج لطيف
+      const delay = 40 + (idx * 45);
       setTimeout(()=>{
         row.style.opacity = '1';
         row.style.transform = 'translateY(0)';
@@ -383,7 +385,7 @@ function ensureModalFieldBindings(modal){
 let dashboardFieldBindingDone = false;
 const debouncedWrites = new WeakMap();
 
-// FIX (from earlier): debounce reads code at execution time to avoid cross-patient writes
+// FIX: debounce writes to current active patient's code
 function writeFieldDebounced(_codeIgnored, field, el){
   if (!debouncedWrites.has(el)) {
     debouncedWrites.set(el, Utils.debounce(async ()=>{
@@ -508,12 +510,11 @@ async function loadAllFromSheets(){
 
 // ===== Mobile UI (sidebar toggle + scrim + FAB) =====
 function setupMobileUI(){
-  if (window.__mobileSetupDone) return;         // قفل لمنع التكرار
+  if (window.__mobileSetupDone) return;
   window.__mobileSetupDone = true;
 
   const topbar = q('#topbar');
 
-  // زر الهامبرغر (يُحقن تلقائياً ولا يحتاج تعديل في index.html)
   if (topbar && !q('#btn-toggle-sidebar', topbar)) {
     const btn = document.createElement('button');
     btn.id = 'btn-toggle-sidebar';
@@ -523,7 +524,6 @@ function setupMobileUI(){
     topbar.insertBefore(btn, topbar.firstChild);
   }
 
-  // Scrim للخلفية عند فتح السايدبار
   if (!q('#sidebar-scrim')) {
     const s = document.createElement('div');
     s.id = 'sidebar-scrim';
@@ -539,19 +539,16 @@ function setupMobileUI(){
   q('#sidebar-scrim')?.addEventListener('click', close);
   document.addEventListener('keydown', e=>{ if(e.key==='Escape') close(); });
 
-  // إغلاق السايدبار بعد اختيار قسم
   document.addEventListener('click', e=>{
     if (!document.body.classList.contains('sidebar-open')) return;
     if (e.target.closest('#sections-list .pill')) close();
   });
 
-  // عند الرجوع لديسكتوب (>980px) أغلق السايدبار
   const mq = window.matchMedia('(min-width: 981px)');
   const onChange = ()=>{ if (mq.matches) close(); };
   mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange);
   onChange();
 
-  // FAB = نفس زر + New Patient
   q('#fab-add')?.addEventListener('click', ()=>{
     q('#btn-new-patient')?.click();
   });
@@ -579,14 +576,13 @@ function bindUI(){
   q('#open-ppi')?.addEventListener('click', () => Calculators.openPPI());
   q('#open-pps')?.addEventListener('click', () => Calculators.openPPS());
 
-  // Launch per-patient calculators from card chips (lightweight)
+  // Launch per-patient calculators from card chips
   document.body.addEventListener('click', (e) => {
     const btn = e.target.closest('.btn-chip[data-calc]');
     if (!btn) return;
 
     const code = btn.dataset.code || '';
     if (code) {
-      // ثبّت المريض النشط
       Patients.setActiveByCode?.(code);
       const pm = q('#patient-modal');
       if (pm) pm.dataset.code = code;
@@ -750,7 +746,6 @@ function bindUI(){
     q('#set-spreadsheet-id').value = State.config.spreadsheetId;
     q('#set-bridge-url').value     = State.config.bridgeUrl;
     q('#set-ai-endpoint').value    = State.config.aiEndpoint;
-    // NEW: set current motion value into the select
     const motion = localStorage.getItem('pr.motion') || '1';
     const sel = q('#set-motion-speed');
     if (sel) sel.value = motion;
@@ -763,7 +758,6 @@ function bindUI(){
     State.config.bridgeUrl     = q('#set-bridge-url').value.trim();
     State.config.aiEndpoint    = q('#set-ai-endpoint').value.trim();
 
-    // NEW: motion speed
     const motionVal = (q('#set-motion-speed')?.value || '1').trim() || '1';
     localStorage.setItem('pr.motion', motionVal);
     document.documentElement.style.setProperty('--motion-multiplier', motionVal);
@@ -773,7 +767,7 @@ function bindUI(){
     localStorage.setItem('pr.ai',     State.config.aiEndpoint);
     q('#settings-modal')?.classList.add('hidden');
 
-    setupMobileUI();               // تأكد من تفعيل الموبايل بعد أي تعديل
+    setupMobileUI();
     await loadAllFromSheets();
     toast('Settings saved. Reconnected.','success');
   });
@@ -806,7 +800,7 @@ function bindUI(){
 }
 document.addEventListener('DOMContentLoaded', bindUI);
 
-// ===== Export Patient List (modal, selection, bulk ops, print) =====
+// ===== Export Patient List =====
 function openExportModal(){
   const modal = q('#export-modal');
   if (!modal) { toast('Export modal not found.', 'danger'); return; }
@@ -822,7 +816,6 @@ function closeExportModal(){
   document.documentElement.style.overflow='';
 }
 
-// Preview list in export modal
 const ExportSel = new Set();
 function getPatientsForExportFiltered(){
   const term = (q('#export-search')?.value || '').trim().toLowerCase();
@@ -959,7 +952,6 @@ function buildPrintPagesHTML(selectedCodes, options){
       return ka.raw.localeCompare(kb.raw);
     });
 
-    // fit-one estimation
     let effectiveScale = scalePercent / 100;
     if (fitOne){
       const estHeight = HEAD_EST + (list.length * fontPx * ROW_EST_FACTOR);
@@ -967,14 +959,13 @@ function buildPrintPagesHTML(selectedCodes, options){
       if (needed < effectiveScale) effectiveScale = Math.max(0.5, needed);
     }
 
-    // Build rows with transformed fields:
     const rows = list.map(p=>{
       const code   = escapeHTML(p['Patient Code']||'');
       const name   = escapeHTML(p['Patient Name']||'');
       const age    = escapeHTML(ageYearsOnly(p['Patient Age']||''));
       const room   = escapeHTML(p['Room']||'');
-      const prov   = escapeHTML(firstWord(p['Admitting Provider']||'')); // first token only
-      const cause  = escapeHTML(firstLines(p['Diagnosis']||'', 2)); // أول سطرين فقط
+      const prov   = escapeHTML(firstWord(p['Admitting Provider']||''));
+      const cause  = escapeHTML(firstLines(p['Diagnosis']||'', 2));
       const iso    = String(p['Isolation']||'').trim();
       const note   = escapeHTML(p['Comments']||'');
 
@@ -1046,7 +1037,6 @@ function renderPrintRootAndPrint(){
   const scale = Math.max(50, Math.min(100, parseInt(q('#export-scale')?.value || '100', 10) || 100));
   const fontPx = parseInt(q('#export-font')?.value || '12', 10) || 12;
   const fitOne = !!q('#export-fit-one')?.checked;
-  // Force one A4 page per section regardless of checkbox
   root.innerHTML = buildPrintPagesHTML(selected, { scalePercent: scale, fontPx, fitOne: true });
   root.style.display = '';
   document.body.setAttribute('data-printing','true');
@@ -1059,7 +1049,6 @@ function renderPrintRootAndPrint(){
 
 // Wire modal buttons for export
 document.addEventListener('click', async (e)=>{
-  // export modal scope
   const inModal = !!e.target.closest('#export-modal');
   if (!inModal) return;
   if (e.target.closest('#btn-export-select-all')){
@@ -1098,10 +1087,8 @@ export const App = {
   async init(){
     applyMotionSpeedFromStorage();
 
-    // Wire top actions
     q('#btn-export')?.addEventListener('click', openExportModal);
 
-    // Init modules
     Sheets.init?.(Bus, State);
     Patients.init?.(Bus, State);
     ESAS.init?.(Bus, State);
@@ -1120,7 +1107,7 @@ export const App = {
     State.ready=true;
   },
 
-  // [PATCH] alias for backward compatibility (fix TypeError: App.start is not a function)
+  // alias for backward compatibility
   async start(){
     return this.init();
   },
