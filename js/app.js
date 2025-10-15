@@ -22,6 +22,8 @@ import { Symptoms } from './symptoms.js';
 import { Summaries } from './summaries.js';
 import { Calculators } from './calculators.js';
 
+// [SMART-INIT] Ensure Importer/PdfImport initialized even if script order changes
+try{ window.addEventListener('DOMContentLoaded', ()=>{ try{Importer?.init?.();}catch(_){ } try{PdfImport?.init?.();}catch(_){ } }); }catch(_){ }
 /* ===========================================
    Defaults on first run
    =========================================== */
@@ -232,7 +234,10 @@ function renderPatientsList(){
 
     // Header: checkbox + name + status
     const header=document.createElement('div'); header.className='row-header';
-    const headLeft=document.createElement('div'); headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.style.gap='8px';
+    const headLeft=document.createElement('div'); headLeft.style.flexWrap='wrap';
+headLeft.style.alignItems='center';
+headLeft.style.gap='6px';
+headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.style.gap='8px';
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -246,12 +251,6 @@ function renderPatientsList(){
 
     const name=document.createElement('div'); name.className='row-title linkish'; name.textContent=p['Patient Name']||'(Unnamed)';
     headLeft.appendChild(cb); headLeft.appendChild(name);
-    // Room badge — make room number prominent (UI-only)
-    const roomBadge = document.createElement('span');
-    roomBadge.className = 'room-badge';
-    roomBadge.textContent = (p['Room'] ? ('Room ' + p['Room']) : 'Room —');
-    headLeft.appendChild(roomBadge);
-
 
     const badge=document.createElement('span'); badge.className = 'status ' + (p['Done']?'done':'open'); badge.textContent=p['Done']?'Done':'Open';
     header.appendChild(headLeft); header.appendChild(badge);
@@ -993,7 +992,7 @@ function bindUI(){
     q('#import-modal')?.classList.remove('hidden');
     q('#btn-import-confirm').onclick = async ()=>{
       const rows = Importer.consumeValidatedRows?.() || [];
-      if (!rows.length){ alert('No rows to import.'); return; }
+      if (!rows.length){ toast('No rows detected — check CSV headers like "Patient Code".','warn'); return; }
       const objs = rows.map(r=>({
         'Patient Code': r[0] || ('P'+Math.random().toString(36).slice(2,8).toUpperCase()),
         'Patient Name': r[1]||'','Patient Age': r[2]||'','Room': r[3]||'','Diagnosis': r[4]||'',
@@ -1180,9 +1179,7 @@ export const App = {
     setupMobileUI();
     await loadAllFromSheets();
     State.ready=true;
-      Symptoms.init?.(Bus, State);
-    Summaries.init?.(Bus, State);
-},
+  },
   // [PATCH] Backward-compat alias
   async start(){ return this.init(); },
   bus: Bus,
