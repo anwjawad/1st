@@ -216,7 +216,7 @@ function getFilteredPatients(){
   return State.patients.filter(p=>inSec(p)&&txt(p)&&st(p));
 }
 function renderPatientsList(){
-  const list=q('#patients-list'); if(!list) return; list.innerHTML='';
+  const list=q('#patients-list'); if(!list) return; list.classList.add('enter'); list.innerHTML='';
   const items=getFilteredPatients();
   if (!items.length){
     const d=document.createElement('div'); d.className='empty small'; d.style.padding='16px'; d.textContent='No patients in this view.'; list.appendChild(d);
@@ -242,10 +242,13 @@ function renderPatientsList(){
       if (cb.checked) State.sel.add(p['Patient Code']);
       else State.sel.delete(p['Patient Code']);
       updateBulkBarState();
-    });
+    
+  setTimeout(()=>{ list.classList.remove('enter'); }, 0);
+});
 
     const name=document.createElement('div'); name.className='row-title linkish'; name.textContent=p['Patient Name']||'(Unnamed)';
-    headLeft.appendChild(cb); headLeft.appendChild(name);
+    const roomBadge=document.createElement('span'); roomBadge.className='room-badge'; roomBadge.textContent=(p['Room']||'—');
+    headLeft.appendChild(cb); headLeft.appendChild(name); headLeft.appendChild(roomBadge);
 
     const badge=document.createElement('span'); badge.className = 'status ' + (p['Done']?'done':'open'); badge.textContent=p['Done']?'Done':'Open';
     header.appendChild(headLeft); header.appendChild(badge);
@@ -733,7 +736,7 @@ function buildPrintPagesHTML(selectedCodes, options){
       const age    = escapeHTML(ageYearsOnly(p['Patient Age']||''));
       const room   = escapeHTML(p['Room']||'');
       const prov   = escapeHTML(firstWord(p['Admitting Provider']||''));
-      const cause  = escapeHTML(firstLines(p['Diagnosis']||'', 2));
+      const cause  = escapeHTML(firstLine(p['Diagnosis']||''));
       const iso    = String(p['Isolation']||'').trim();
       const note   = escapeHTML(p['Comments']||'');
 
