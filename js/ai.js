@@ -124,7 +124,7 @@ function buildLocalSummary(bundle) {
     `Patient: ${name} — Age: ${age}, Room: ${room}`,
     `Admitting Provider: ${provider}`,
     `Diagnosis: ${dx}`,
-    `Diet: ${diet} | Isolation: ${iso}`,
+    `Today’s Note: ${diet} | Isolation: ${iso}`,
     comments ? `Comments: ${comments}` : null
   );
 
