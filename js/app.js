@@ -246,6 +246,12 @@ function renderPatientsList(){
 
     const name=document.createElement('div'); name.className='row-title linkish'; name.textContent=p['Patient Name']||'(Unnamed)';
     headLeft.appendChild(cb); headLeft.appendChild(name);
+    // Room badge — make room number prominent (UI-only)
+    const roomBadge = document.createElement('span');
+    roomBadge.className = 'room-badge';
+    roomBadge.textContent = (p['Room'] ? ('Room ' + p['Room']) : 'Room —');
+    headLeft.appendChild(roomBadge);
+
 
     const badge=document.createElement('span'); badge.className = 'status ' + (p['Done']?'done':'open'); badge.textContent=p['Done']?'Done':'Open';
     header.appendChild(headLeft); header.appendChild(badge);
@@ -453,16 +459,7 @@ function openDashboardFor(code, asModal=false){
     ctcae: CTCAE.getForPatient(code, State.ctcae),
     labs: Labs.getForPatient(code, State.labs)
   });
-  
-  // UI relabel: Diet → Today’s Note (UI only; storage key remains 'Diet')
-  try {
-    const bio = q('#bio-grid');
-    if (bio) qa('.field .label', bio).forEach(l=>{
-      const t=(l.textContent||'').trim();
-      if (/^Diet$/i.test(t)) l.textContent = "Today’s Note";
-    });
-  } catch(_) {}
-const sData = {
+  const sData = {
     symptoms: (patient['Symptoms']||'').split(',').map(x=>x.trim()).filter(Boolean),
     notes: safeJSON(patient['Symptoms Notes']||'{}')
   };
@@ -1183,7 +1180,9 @@ export const App = {
     setupMobileUI();
     await loadAllFromSheets();
     State.ready=true;
-  },
+      Symptoms.init?.(Bus, State);
+    Summaries.init?.(Bus, State);
+},
   // [PATCH] Backward-compat alias
   async start(){ return this.init(); },
   bus: Bus,
