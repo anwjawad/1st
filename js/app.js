@@ -234,7 +234,7 @@ function renderPatientsList(){
 
     // Header: checkbox + name + status
     const header=document.createElement('div'); header.className='row-header';
-    const headLeft=document.createElement('div'); headLeft.style.flexWrap='wrap';
+    const headLeft=document.createElement('div'); headLeft.style.flexWrap='nowrap';
 headLeft.style.alignItems='center';
 headLeft.style.gap='6px';
 headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.style.gap='8px';
