@@ -1179,6 +1179,9 @@ export const App = {
     setupMobileUI();
     await loadAllFromSheets();
     State.ready=true;
+     // ✅ Initialize modules that depend on Bus & State
+try { Symptoms.init?.(Bus, State); } catch(e){ console.warn('Symptoms init failed', e); }
+try { Summaries.init?.(Bus, State); } catch(e){ console.warn('Summaries init failed', e); }
   },
   // [PATCH] Backward-compat alias
   async start(){ return this.init(); },
