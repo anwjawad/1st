@@ -232,11 +232,7 @@ function renderPatientsList(){
 
     // Header: checkbox + name + status
     const header=document.createElement('div'); header.className='row-header';
-    const headLeft=document.createElement('div'); headLeft.style.display='flex';
-headLeft.style.alignItems='center';
-headLeft.style.gap='8px';
-headLeft.style.flexWrap='nowrap';
-headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.style.gap='8px';
+    const headLeft=document.createElement('div'); headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.style.gap='8px';
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
