@@ -163,10 +163,10 @@ body{
 
 /* ===== Cards ===== */
 .card{ background: var(--card); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; }
-/* overflow fix for card text */
-.row-title, .row-sub{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
 .card:hover{ transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,.25); }
 .card .card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px}
+.row-header, .card-head{ flex-wrap: nowrap; align-items: center; }
+
 .card-title{font-weight:800; font-size:16px; letter-spacing:.2px}
 .actions-row{display:flex; gap:8px; flex-wrap:wrap}
 
@@ -200,8 +200,8 @@ body{
   display:inline-flex; align-items:center; gap:6px;
   padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--border);
 }
-/* Room badge: same visual palette as 'Open' status (smaller) */
-.room-badge{ display:inline-flex; align-items:center; justify-content:center; background: color-mix(in oklab, var(--primary) 16%, transparent); color:#e8ecff; border-radius:999px; font-size:12px; padding:2px 8px; border:1px solid var(--border); line-height:1; vertical-align:middle; }
+.room-badge{ flex-shrink: 0; white-space: nowrap; max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
+
 .status.open{background: color-mix(in oklab, var(--primary) 16%, transparent); color:#e8ecff}
 .status.done{background: color-mix(in oklab, var(--success) 18%, transparent); color:#dffbef; border-color: color-mix(in oklab, var(--success) 40%, var(--border) 60%)}
 
