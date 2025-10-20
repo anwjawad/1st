@@ -6,7 +6,6 @@
 (async function init() {
   // ---------- Path resolver so it works from root or /js ----------
   function detectJsBase(){
-    // Find any project script that lives in /js/ (like app.js)
     const el = Array.from(document.scripts).find(s => /\/js\/app\.js($|\?)/.test(s.src));
     if (el) return el.src.replace(/app\.js.*$/,''); // ends with .../js/
     return new URL('./js/', window.location.href).href;
@@ -34,11 +33,25 @@
   btn.className = 'btn';
   btn.id = 'btn-custom-print';
   btn.innerHTML = '<span class="mi md">print</span>&nbsp;Print (custom)';
-  // place near export / summaries if possible
   const ref = document.querySelector('#open-summaries')?.parentElement || host;
   ref.appendChild(btn);
 
-  // ---------- Style for modal + small controls ----------
+  // ---------- Display-title map + default widths ----------
+  const TITLE_MAP = {
+    'Patient Code': 'Code',
+    'Patient Age':  'Age',
+    'Admitting Provider': 'PP'
+    // others unchanged
+  };
+  const DEFAULT_WIDTHS = {
+    'Patient Code': '16mm',
+    'Patient Age':  '5mm',
+    'Admitting Provider': '8mm',
+    'Room': '8mm',
+    'Diagnosis': '60mm'
+  };
+
+  // ---------- Style for modal + preview ----------
   (function injectLocalCSS(){
     if (document.getElementById('print-custom-style')) return;
     const css = `
@@ -51,21 +64,21 @@
       .pc-sep  { height:1px; background:var(--border); margin:8px 0 }
       .pc-note { font-size:12.5px; opacity:.8 }
       .pc-badge{ display:inline-block; padding:2px 8px; border:1px solid var(--border); border-radius:999px; }
-      .pc-table-preview { max-height:40vh; overflow:auto; border:1px solid var(--border); border-radius:10px; }
 
-      /* --------- Modal as big card (85% of viewport) --------- */
+      /* Preview "page" look */
+      .pc-preview-wrap { background:#fff; border-radius:10px; border:1px solid var(--border);
+        box-shadow: 0 10px 30px rgba(0,0,0,.25); padding:10px; }
+      .pc-table-preview { max-height:40vh; overflow:auto; }
+      .pc-table-preview table { background:#fff; }
+
+      /* Modal as big card (85% of viewport) */
       #custom-print-modal .modal-card {
         width: 85vw !important;
         height: 85vh !important;
         max-width: 1200px;
-        display: flex;
-        flex-direction: column;
+        display: flex; flex-direction: column;
       }
-      #custom-print-modal .modal-body {
-        flex: 1 1 auto;
-        overflow: auto;
-      }
-      /* Print view styles injected into new window too */
+      #custom-print-modal .modal-body { flex: 1 1 auto; overflow: auto; }
     `.trim();
     const s = document.createElement('style');
     s.id='print-custom-style'; s.textContent=css; document.head.appendChild(s);
@@ -106,6 +119,7 @@
                 <input id="pc-fit" type="checkbox" checked />
                 <span>One page per Section</span>
               </label>
+              <button id="pc-apply" class="btn" style="margin-left:auto"><span class="mi md">refresh</span>&nbsp;Apply</button>
             </div>
           </div>
 
@@ -148,8 +162,10 @@
 
           <div class="section">
             <div class="section-head"><div class="block-title">Preview (sample)</div></div>
-            <div class="pc-table-preview">
-              <table id="pc-preview" class="mono small" style="border-collapse:collapse; width:100%"></table>
+            <div class="pc-preview-wrap">
+              <div class="pc-table-preview">
+                <table id="pc-preview" class="mono small" style="border-collapse:collapse; width:100%"></table>
+              </div>
             </div>
             <div class="pc-note" style="margin-top:6px">Final output opens in a print window and applies A4, headers darker, black text, zebra rows, and per-section page break. Use the scale to fit exactly one page per section.</div>
           </div>
@@ -186,9 +202,10 @@
     ALL_COLUMNS.forEach(key=>{
       const w = document.createElement('label');
       w.className = 'field';
+      const def = DEFAULT_WIDTHS[key] || '';
       w.innerHTML = `
         <span class="label">${key}</span>
-        <input class="pc-width pc-mm" data-key="${key}" type="text" placeholder="e.g., 18mm or 12%" />
+        <input class="pc-width pc-mm" data-key="${key}" type="text" placeholder="e.g., 18mm or 12%" value="${def}"/>
       `;
       host.appendChild(w);
     });
@@ -207,11 +224,14 @@
   function firstSentence(v){
     const s = String(v||'').trim();
     if (!s) return '';
-    const m = s.match(/(.+?[.؟!。]|.+$)/); // first sentence-ish
+    const m = s.match(/(.+?[.؟!。]|.+$)/);
     return m ? m[1].trim() : s;
   }
+  function codeNumberOnly(v){
+    const m = String(v||'').match(/\d+/);
+    return m ? m[0] : '';
+  }
   function splitMeds(text){
-    // Very simple heuristic: lines containing "PRN" -> PRN; others -> Regular
     const lines = String(text||'').split(/\r?\n|;+/).map(s=>s.trim()).filter(Boolean);
     const regular=[], prn=[];
     lines.forEach(l=>{
@@ -221,7 +241,7 @@
     return { regular: regular.join('; '), prn: prn.join('; ') };
   }
 
-  // labs abnormal summary (fallback if patient['Labs Abnormal'] missing)
+  // labs abnormal summary (fallback)
   const LAB_REF = {
     'WBC':[4.0,11.0],'HGB':[12.0,16.0],'PLT':[150,450],'ANC':[1.5,8.0],'CRP':[0,5],
     'Albumin':[3.5,5.0],'Sodium (Na)':[135,145],'Potassium (K)':[3.5,5.1],'Chloride (Cl)':[98,107],
@@ -245,7 +265,7 @@
   }
 
   // ---------- Data pull + build preview ----------
-  let SNAP = null; // { sections, patients, labsMapByCode }
+  let SNAP = null;
   async function snapshot(){
     const data = await Sheets.loadAll();
     const sections = data.sections?.length ? data.sections : ['Default'];
@@ -291,6 +311,7 @@
   }
   function ageFor(p){ return onlyYears(p['Patient Age']); }
   function provFor(p){ return firstName(p['Admitting Provider']); }
+  function codeFor(p){ return codeNumberOnly(p['Patient Code']); }
 
   function renderPreview(){
     if (!SNAP) return;
@@ -298,36 +319,40 @@
     table.innerHTML='';
 
     const cols = gatherSelectedColumns();
-    if (!cols.length){ table.innerHTML='<tbody><tr><td class="small muted">No columns selected.</td></tr></tbody>'; return; }
+    if (!cols.length){
+      table.innerHTML='<tbody><tr><td class="small muted">No columns selected.</td></tr></tbody>';
+      return;
+    }
 
     // Head
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
     cols.forEach(h=>{
       const th = document.createElement('th');
-      th.textContent = h;
+      th.textContent = TITLE_MAP[h] || h;     // <<< short titles
       th.style.padding = '6px 8px';
       th.style.border = '1px solid var(--border)';
-      th.style.background = 'rgba(0,0,0,.14)'; // darker header
+      th.style.background = 'rgba(0,0,0,.14)';
       th.style.color = '#000';
       trh.appendChild(th);
     });
     thead.appendChild(trh);
     table.appendChild(thead);
 
-    // Body (a few rows sample)
+    // Body (sample)
     const tbody = document.createElement('tbody');
     const sample = SNAP.patients.slice(0, 6);
     sample.forEach((p, idx)=>{
       const tr = document.createElement('tr');
-      tr.style.background = idx % 2 ? 'rgba(0,0,0,.04)' : 'transparent'; // zebra
+      tr.style.background = idx % 2 ? 'rgba(0,0,0,.04)' : 'transparent';
       cols.forEach(c=>{
         const td = document.createElement('td');
         td.style.border = '1px solid var(--border)';
         td.style.padding = '6px 8px';
-        td.style.color = '#000'; // black text after headers
+        td.style.color = '#000';
         let val = '';
         switch(c){
+          case 'Patient Code':       val = codeFor(p); break; // <<< number only
           case 'Patient Age':        val = ageFor(p); break;
           case 'Admitting Provider': val = provFor(p); break;
           case 'Diagnosis':          val = dxFor(p, document.getElementById('pc-dx-mode').value); break;
@@ -335,15 +360,19 @@
           case 'LABS':               val = labsFor(p); break;
           case 'Regular Meds':       val = medsFor(p).regular; break;
           case 'PRN Meds':           val = medsFor(p).prn; break;
-          case 'Plan':               val = p['Plan']||''; break; // optional free field (not in sheet)
+          case 'Plan':               val = p['Plan']||''; break;
           default:                   val = p[c]||'';
         }
         td.textContent = val;
-        tbody.appendChild(tr);
         tr.appendChild(td);
       });
+      tbody.appendChild(tr);
     });
     table.appendChild(tbody);
+
+    // apply preview scale (table font size)
+    const scale = Number(document.getElementById('pc-scale')?.value || 11);
+    table.style.fontSize = `${scale}px`;
   }
 
   // ---------- Build print HTML ----------
@@ -369,10 +398,9 @@
     `.trim();
 
     function colWidthStyle(){
-      // widths: map { colKey: '18mm'|'12%'|'120px' }
       const arr = [];
       Object.entries(widths||{}).forEach(([k,v])=>{
-        const safeKey = k.replace(/\s+/g,'-').toLowerCase();
+        const safeKey = (TITLE_MAP[k] || k).replace(/\s+/g,'-').toLowerCase();
         arr.push(`.col-${safeKey} { width: ${v}; }`);
       });
       return arr.join('\n');
@@ -380,13 +408,15 @@
 
     function headRow(){
       return '<tr>' + cols.map(k=>{
-        const cls = 'col-' + k.replace(/\s+/g,'-').toLowerCase();
-        return `<th class="${cls}">${esc(k)}</th>`;
+        const title = TITLE_MAP[k] || k;                   // <<< short titles
+        const cls = 'col-' + title.replace(/\s+/g,'-').toLowerCase();
+        return `<th class="${cls}">${esc(title)}</th>`;
       }).join('') + '</tr>';
     }
 
     function cellFor(p, key){
       switch(key){
+        case 'Patient Code':       return esc(codeNumberOnly(p['Patient Code'])); // <<< number only
         case 'Patient Age':        return esc(onlyYears(p['Patient Age']));
         case 'Admitting Provider': return esc(firstName(p['Admitting Provider']));
         case 'Diagnosis': {
@@ -411,13 +441,12 @@
     }
 
     function tableForSection(sec, list){
-      const rows = list.map((p,idx)=>{
+      const rows = list.map((p)=> {
         const tds = cols.map(k=>`<td>${cellFor(p,k)}</td>`).join('');
         return `<tr>${tds}</tr>`;
       }).join('');
       const head = headRow();
       const title = `<div class="title">Section: ${esc(sec)} — ${now.toISOString().slice(0,16).replace('T',' ')}</div>`;
-      // Fit-one-page hint: reduce font-size if "fit" checked (we already let user scale)
       const tableStyle = `font-size:${scalePx}px;`;
       return `
         <div class="page">
@@ -437,10 +466,7 @@
       bySec.get(sec).push(p);
     });
 
-    const pages = Array.from(bySec.entries()).map(([sec, arr]) => {
-      // Optional crude shrink if fit required and too many rows? We leave to user via scale.
-      return tableForSection(sec, arr);
-    }).join('\n');
+    const pages = Array.from(bySec.entries()).map(([sec, arr]) => tableForSection(sec, arr)).join('\n');
 
     return `
       <!doctype html>
@@ -461,19 +487,24 @@
   // ---------- Wire modal behavior ----------
   btn.addEventListener('click', async ()=>{
     ensureModal();
-    // init defaults + widths UI
-    renderWidthInputs();
-    // load data
+    renderWidthInputs();          // defaults filled here
     await snapshot();
     openModal();
     renderPreview();
   });
 
+  // Apply button for manual preview refresh
+  document.addEventListener('click', (e)=>{
+    if (e.target.closest('#pc-apply')) {
+      renderPreview();
+    }
+  });
+
   document.addEventListener('change', (e)=>{
     const modal = document.getElementById('custom-print-modal');
     if (!modal || modal.classList.contains('hidden')) return;
-
     if (e.target.matches('.pc-col') || e.target.matches('#pc-dx-mode') || e.target.matches('#pc-orient')) {
+      // keep live if you want, or comment out to depend strictly on Apply:
       renderPreview();
     }
   });
@@ -481,13 +512,13 @@
   document.addEventListener('input', (e)=>{
     const modal = document.getElementById('custom-print-modal');
     if (!modal || modal.classList.contains('hidden')) return;
-
     if (e.target.matches('#pc-scale') || e.target.matches('.pc-width') || e.target.matches('#pc-wrap')) {
+      // keep live update; Apply also available
       renderPreview();
     }
   });
 
-  // IMPORTANT: delegate click so the handler exists even if the button is injected later
+  // Delegate click for opening print window
   document.addEventListener('click', async (e)=>{
     const openBtn = e.target.closest('#pc-open');
     if (!openBtn) return;
@@ -502,7 +533,6 @@
     if (!SNAP) await snapshot();
     const html = buildPrintHTML({ orient, scalePx: scale, wrap, fit, cols, widths });
 
-    // open immediately on user click (prevents popup blockers)
     const w = window.open('', '_blank');
     if (!w) { alert('Popup blocked. Allow popups for this site to print.'); return; }
     w.document.open(); w.document.write(html); w.document.close();
