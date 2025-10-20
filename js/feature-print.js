@@ -52,6 +52,19 @@
       .pc-note { font-size:12.5px; opacity:.8 }
       .pc-badge{ display:inline-block; padding:2px 8px; border:1px solid var(--border); border-radius:999px; }
       .pc-table-preview { max-height:40vh; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+
+      /* --------- Modal as big card (85% of viewport) --------- */
+      #custom-print-modal .modal-card {
+        width: 85vw !important;
+        height: 85vh !important;
+        max-width: 1200px;
+        display: flex;
+        flex-direction: column;
+      }
+      #custom-print-modal .modal-body {
+        flex: 1 1 auto;
+        overflow: auto;
+      }
       /* Print view styles injected into new window too */
     `.trim();
     const s = document.createElement('style');
@@ -457,22 +470,28 @@
   });
 
   document.addEventListener('change', (e)=>{
-    if (!document.getElementById('custom-print-modal') || document.getElementById('custom-print-modal').classList.contains('hidden')) return;
+    const modal = document.getElementById('custom-print-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
 
-    if (e.target.matches('.pc-col') || e.target.matches('#pc-dx-mode')) {
-      // rebuild widths grid when columns change (keep inputs)
+    if (e.target.matches('.pc-col') || e.target.matches('#pc-dx-mode') || e.target.matches('#pc-orient')) {
       renderPreview();
     }
   });
 
   document.addEventListener('input', (e)=>{
-    if (!document.getElementById('custom-print-modal') || document.getElementById('custom-print-modal').classList.contains('hidden')) return;
-    if (e.target.matches('#pc-scale') || e.target.matches('.pc-width') || e.target.matches('#pc-orient') || e.target.matches('#pc-wrap')) {
+    const modal = document.getElementById('custom-print-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+
+    if (e.target.matches('#pc-scale') || e.target.matches('.pc-width') || e.target.matches('#pc-wrap')) {
       renderPreview();
     }
   });
 
-  document.getElementById('pc-open')?.addEventListener('click', async ()=>{
+  // IMPORTANT: delegate click so the handler exists even if the button is injected later
+  document.addEventListener('click', async (e)=>{
+    const openBtn = e.target.closest('#pc-open');
+    if (!openBtn) return;
+
     const orient = document.getElementById('pc-orient').value;
     const scale  = Number(document.getElementById('pc-scale').value || 11);
     const wrap   = !!document.getElementById('pc-wrap').checked;
@@ -482,7 +501,10 @@
 
     if (!SNAP) await snapshot();
     const html = buildPrintHTML({ orient, scalePx: scale, wrap, fit, cols, widths });
+
+    // open immediately on user click (prevents popup blockers)
     const w = window.open('', '_blank');
+    if (!w) { alert('Popup blocked. Allow popups for this site to print.'); return; }
     w.document.open(); w.document.write(html); w.document.close();
   });
 
