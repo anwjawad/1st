@@ -3,10 +3,6 @@
 // + Bulk ops in main list (select/move/delete)
 // + Export Patient List with print scaling (scale/font/fit-one) and custom columns
 // + Robust write-through for text fields
-// [PATCH] Backward-compat: add App.start() alias to App.init() to fix callers using App.start()
-// [PATCH-UI] Show Today's Note (Diet) on patient cards + staggered slide-in animation
-// [PATCH-SYM] Show ALL symptoms on patient cards (no +N truncation)
-// [PATCH-EXP] Robust export modal (auto-create if missing) + broader button bindings
 
 import { Sheets } from './sheets.js';
 import { Patients } from './patients.js';
@@ -22,11 +18,7 @@ import { Symptoms } from './symptoms.js';
 import { Summaries } from './summaries.js';
 import { Calculators } from './calculators.js';
 
-// [SMART-INIT] Ensure Importer/PdfImport initialized even if script order changes
-try{ window.addEventListener('DOMContentLoaded', ()=>{ try{Importer?.init?.();}catch(_){ } try{PdfImport?.init?.();}catch(_){ } }); }catch(_){ }
-/* ===========================================
-   Defaults on first run
-   =========================================== */
+// ===== Defaults on first run =====
 const DEFAULTS = {
   spreadsheetId: '1l8UoblxznwV_zz7ZqnorOWZKfnmG3pZgVCT0DaSm0kU',
   bridgeUrl: 'https://script.google.com/macros/s/AKfycbxjiRgEeKlRbJQz_NZ0YhE0RSubMNLhi-Ndzk1PUCm0cW1ZJgIfqZc7bWiDlXd6wA8/exec'
@@ -38,9 +30,7 @@ const DEFAULTS = {
   if (!localStorage.getItem('pr.motion')) localStorage.setItem('pr.motion', '1');
 })();
 
-/* ===========================================
-   Helpers
-   =========================================== */
+// ===== Helpers =====
 function toRoomKey(v){
   const s = String(v || '').trim();
   if (!s) return {num: Number.POSITIVE_INFINITY, raw: ''};
@@ -58,9 +48,7 @@ function applyMotionSpeedFromStorage(){
   document.documentElement.style.setProperty('--motion-multiplier', v);
 }
 
-/* ===========================================
-   Preferences (ThemeManager integration)
-   =========================================== */
+// ===== Preferences (from ThemeManager / localStorage.pr.settings) =====
 function getPreferences(){
   // ThemeManager معرف عالميًا من themes.js
   const s = (window.ThemeManager && typeof window.ThemeManager.getSettings === 'function')
@@ -104,9 +92,7 @@ window.addEventListener('pr:preferences-save', (ev)=>{
   populateMoveTargets();
 });
 
-/* ===========================================
-   Labs helpers (unchanged)
-   =========================================== */
+// Labs helpers (unchanged)
 const LAB_REF = {
   'WBC':[4.0,11.0],'HGB':[12.0,16.0],'PLT':[150,450],'ANC':[1.5,8.0],'CRP':[0,5],
   'Albumin':[3.5,5.0],'Sodium (Na)':[135,145],'Potassium (K)':[3.5,5.1],'Chloride (Cl)':[98,107],
@@ -134,17 +120,13 @@ function abnormalSummary(labs){
   return arr.join(', ');
 }
 
-/* ===========================================
-   Event Bus
-   =========================================== */
+// ===== Event Bus =====
 const Bus = (()=>{ const m=new Map(); return {
   on(n,f){ if(!m.has(n)) m.set(n,new Set()); m.get(n).add(f); return ()=>m.get(n)?.delete(f); },
   emit(n,p){ m.get(n)?.forEach(fn=>{ try{fn(p);}catch(e){console.error('Bus',e);} }); }
 };})();
 
-/* ===========================================
-   Global State
-   =========================================== */
+// ===== Global State =====
 const State = {
   ready:false, loading:false, filter:'all', search:'',
   activeSection:'Default', sections:['Default'],
@@ -158,9 +140,7 @@ const State = {
   get activePatient(){ return Patients.getActive?.()||null; }
 };
 
-/* ===========================================
-   Sections + Patients list
-   =========================================== */
+// ===== UI: Sections & Patients list =====
 function renderSections(){
   const root = q('#sections-list');
   if(!root) return;
@@ -196,19 +176,15 @@ function renderSections(){
   if (label) label.textContent = State.activeSection || 'Default';
   populateMoveTargets();
 }
-// تحديث عدّاد الأقسام
-function refreshSections(){ renderSections(); }
 
-/* [PATCH-SYM] Symptoms → كامل بدون (+N) */
-function symptomsPreview(p){
-  return (p['Symptoms']||'')
-    .split(',').map(x=>x.trim()).filter(Boolean).join(', ');
+// تحديث عدّاد الأقسام
+function refreshSections(){
+  renderSections();
 }
-function firstLine(s){
-  const t = String(s == null ? '' : s);
-  if (!t) return '';
-  const ln = t.split(/\r?\n/)[0] || '';
-  return ln.length > 240 ? (ln.slice(0,237) + '…') : ln;
+
+function symptomsPreview(p){
+  const s=(p['Symptoms']||'').split(',').map(x=>x.trim()).filter(Boolean);
+  return s.length? s.slice(0,3).join(', ')+(s.length>3?` (+${s.length-3})`:'') : '';
 }
 function getFilteredPatients(){
   const s=State.search.toLowerCase().trim(), f=State.filter;
@@ -224,7 +200,7 @@ function renderPatientsList(){
     const d=document.createElement('div'); d.className='empty small'; d.style.padding='16px'; d.textContent='No patients in this view.'; list.appendChild(d);
     return;
   }
-  items.forEach((p, idx)=>{
+  items.forEach(p=>{
     const labsRec = Labs.getForPatient(p['Patient Code'], State.labs);
     const labsAbn = p['Labs Abnormal'] || abnormalSummary(labsRec);
     const symPrev = symptomsPreview(p);
@@ -234,10 +210,7 @@ function renderPatientsList(){
 
     // Header: checkbox + name + status
     const header=document.createElement('div'); header.className='row-header';
-    const headLeft=document.createElement('div'); headLeft.style.flexWrap='nowrap';
-headLeft.style.alignItems='center';
-headLeft.style.gap='6px';
-headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.style.gap='8px';
+    const headLeft=document.createElement('div'); headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.style.gap='8px';
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -256,27 +229,14 @@ headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.styl
     header.appendChild(headLeft); header.appendChild(badge);
 
     const meta=document.createElement('div'); meta.className='row-sub';
-    const dx=p['Diagnosis']?`• ${p['Diagnosis']}`:'';
-    meta.textContent=`${p['Patient Age']||'—'} yrs • Room ${p['Room']||'—'} ${dx}`;
-
-    // [PATCH-UI] Today's Note = Diet (UI فقط) — يظهر فقط إذا كان معبّأ
-    const diet = firstLine(p['Diet'] || '').trim();
-    let noteEl = null;
-    if (diet){
-      noteEl = document.createElement('div');
-      noteEl.className = 'row-sub';
-      noteEl.textContent = diet;
-      noteEl.style.marginTop = '4px';
-    }
+    const dx=p['Diagnosis']?`• ${p['Diagnosis']}`:''; meta.textContent=`${p['Patient Age']||'—'} yrs • Room ${p['Room']||'—'} ${dx}`;
 
     const tags=document.createElement('div'); tags.className='row-tags';
     const sectionPill=document.createElement('span'); sectionPill.className='row-tag'; sectionPill.textContent=p['Section']||'Default'; tags.appendChild(sectionPill);
     if (labsAbn){ const chip=document.createElement('span'); chip.className='row-chip abn'; chip.textContent=labsAbn; tags.appendChild(chip); }
     if (symPrev){ const chip=document.createElement('span'); chip.className='row-chip sym'; chip.textContent=symPrev; tags.appendChild(chip); }
 
-    left.appendChild(header); left.appendChild(meta);
-    if (noteEl) left.appendChild(noteEl); // فقط عند التعبئة
-    left.appendChild(tags);
+    left.appendChild(header); left.appendChild(meta); left.appendChild(tags);
 
     // === Mini calculator chips inside each patient card (ECOG / PPI / PPS) ===
     const mini = document.createElement('div');
@@ -306,15 +266,7 @@ headLeft.style.display='flex'; headLeft.style.alignItems='center'; headLeft.styl
       openDashboardFor(p['Patient Code'], true);
     });
 
-    // إدراج الصف
     list.appendChild(row);
-
-    // [PATCH-UI] Staggered slide-in animation
-    row.style.opacity = '0';
-    row.style.transform = 'translateY(8px)';
-    row.style.transition = 'opacity calc(220ms*var(--motion-multiplier,1)) ease, transform calc(220ms*var(--motion-multiplier,1)) ease';
-    const delay = 40 + (idx * 45 * Number(localStorage.getItem('pr.motion')||'1'));
-    setTimeout(()=>{ row.style.opacity='1'; row.style.transform='translateY(0)'; }, delay);
   });
   updateBulkBarState();
 }
@@ -325,9 +277,7 @@ function updateBulkBarState(){
   });
 }
 
-/* ===========================================
-   Populate move targets for export/move dropdowns
-   =========================================== */
+// ===== Populate move targets =====
 function populateMoveTargets(){
   const sections = State.sections || ['Default'];
   const s1 = q('#plist-move-target'); if (s1){
@@ -340,9 +290,7 @@ function populateMoveTargets(){
   }
 }
 
-/* ===========================================
-   Dashboard binding (write-through)
-   =========================================== */
+// ===== Dashboard binding (write-through) =====
 const PATIENT_FIELDS = new Set([
   'Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Diagnosis','Diet','Isolation','Comments',
   'Section','Done','Updated At','HPI Diagnosis','HPI Previous','HPI Current','HPI Initial','Patient Assessment','Medication List','Latest Notes',
@@ -471,9 +419,51 @@ function openDashboardFor(code, asModal=false){
 }
 const safeJSON = s => { try{return JSON.parse(s);}catch{return{};} };
 
-/* ===========================================
-   Mobile UI (sidebar toggle + scrim + FAB)
-   =========================================== */
+// ===== Modal =====
+function openPatientModal(){
+  const m=q('#patient-modal'); if (!m) return;
+  m.classList.remove('hidden');
+  document.documentElement.style.overflow='hidden';
+  const onKey=(ev)=>{ if(ev.key==='Escape'){ ev.preventDefault(); closePatientModal(); document.removeEventListener('keydown',onKey);} };
+  document.addEventListener('keydown', onKey);
+}
+function closePatientModal(){
+  const m=q('#patient-modal'); if (!m) return;
+  m.classList.add('hidden');
+  document.documentElement.style.overflow='';
+}
+
+// ===== Load from Sheets =====
+async function loadAllFromSheets(){
+  State.loading=true;
+  try{
+    await Sheets.init(State.config);
+    const data=await Sheets.loadAll();
+    State.sections = data.sections?.length ? data.sections : ['Default'];
+    State.patients = Array.isArray(data.patients) ? data.patients : [];
+    State.esas     = Array.isArray(data.esas)     ? data.esas     : [];
+    State.ctcae    = Array.isArray(data.ctcae)    ? data.ctcae    : [];
+    State.labs     = Array.isArray(data.labs)     ? data.labs     : [];
+    if (!data.sections?.length) await Sheets.ensureSection('Default');
+    if (!State.sections.includes(State.activeSection)) State.activeSection = State.sections[0] || 'Default';
+
+    // === Apply preferences after pulling sections from Sheets ===
+    const prefs = getPreferences();
+    applyDensityPref(prefs);
+    applySectionOrderPref(prefs);
+
+    renderSections();
+    renderPatientsList();
+    Dashboard.clearEmpty?.(true);
+  }catch(e){
+    console.error(e);
+    toast('Failed to load from Google Sheets. Check Settings.','danger');
+  }finally{
+    State.loading=false;
+  }
+}
+
+// ===== Mobile UI (sidebar toggle + scrim + FAB) =====
 function setupMobileUI(){
   if (window.__mobileSetupDone) return;         // قفل لمنع التكرار
   window.__mobileSetupDone = true;
@@ -524,362 +514,9 @@ function setupMobileUI(){
   });
 }
 
-/* ===========================================
-   Export Modal (robust) + list rendering
-   =========================================== */
-// [PATCH-EXP] ensure export modal exists (auto-create if missing)
-function ensureExportModal(){
-  if (q('#export-modal')) return;
-
-  const wrap = document.createElement('div');
-  wrap.id = 'export-modal';
-  wrap.className = 'modal hidden';
-  wrap.innerHTML = `
-    <div class="modal-card modal-card-full" role="dialog" aria-modal="true" aria-label="Export Patient List">
-      <div class="modal-header">
-        <div class="card-title">Export Patient List</div>
-        <div style="display:flex; gap:8px; align-items:center">
-          <input id="export-search" type="search" placeholder="Search patients..." class="pinput" />
-          <button id="btn-export-select-all" class="btn">Select All</button>
-          <button id="btn-export-clear" class="btn">Clear</button>
-          <select id="export-move-target" class="pselect"></select>
-          <button id="btn-export-move" class="btn">Move</button>
-          <button id="btn-export-close" class="btn" data-close-modal="export-modal">Close</button>
-        </div>
-      </div>
-      <div class="modal-body modal-body-pad">
-        <div id="export-list"></div>
-      </div>
-      <div class="modal-footer">
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
-          <label class="field" style="max-width:120px">
-            <span class="label">Scale %</span>
-            <input id="export-scale" type="number" class="pinput" min="50" max="100" value="100"/>
-          </label>
-          <label class="field" style="max-width:120px">
-            <span class="label">Font px</span>
-            <input id="export-font" type="number" class="pinput" min="10" max="16" value="12"/>
-          </label>
-          <label class="checkbox">
-            <input id="export-fit-one" type="checkbox"/>
-            <span>Fit one page/section</span>
-          </label>
-        </div>
-        <div style="flex:1"></div>
-        <button id="btn-export-print-footer" class="btn btn-primary">Print</button>
-      </div>
-    </div>`;
-  document.body.appendChild(wrap);
-}
-function openExportModal(){
-  ensureExportModal();
-  const modal = q('#export-modal');
-  populateMoveTargets();
-  renderExportList();
-  modal.classList.remove('hidden');
-  document.documentElement.style.overflow='hidden';
-}
-function closeExportModal(){
-  const modal = q('#export-modal');
-  if (!modal) return;
-  modal.classList.add('hidden');
-  document.documentElement.style.overflow='';
-}
-
-// Preview list in export modal
-const ExportSel = new Set();
-function getPatientsForExportFiltered(){
-  const term = (q('#export-search')?.value || '').trim().toLowerCase();
-  const arr = State.patients.filter(p => (p.Section||'Default') === State.activeSection);
-  if (!term) return arr.slice();
-  return arr.filter(p => JSON.stringify(p).toLowerCase().includes(term));
-}
-function renderExportList(){
-  const root = q('#export-list'); if (!root) return;
-  root.innerHTML = '';
-  const pats = getPatientsForExportFiltered();
-
-  const bySec = new Map();
-  pats.forEach(p=>{
-    const sec = p.Section || 'Default';
-    if (!bySec.has(sec)) bySec.set(sec, []);
-    bySec.get(sec).push(p);
-  });
-
-  const secs = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
-  secs.forEach(sec=>{
-    const list = bySec.get(sec) || [];
-    list.sort((a,b)=>{
-      const ka = toRoomKey(a.Room);
-      const kb = toRoomKey(b.Room);
-      if (ka.num !== kb.num) return ka.num - kb.num;
-      return ka.raw.localeCompare(kb.raw);
-    });
-    const card = document.createElement('div');
-    card.className = 'card';
-    const head = document.createElement('div');
-    head.className = 'card-head';
-    head.innerHTML = '<div class="card-title">Section: '+sec+'</div>';
-    card.appendChild(head);
-    const table = document.createElement('table');
-    table.className = 'mono small';
-    table.style.width='100%';
-    table.style.borderCollapse='collapse';
-    const thead = document.createElement('thead');
-    const trh = document.createElement('tr');
-    ['Select','Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Cause Of Admission','Diet','Isolation','Note'].forEach(h=>{
-      const th = document.createElement('th');
-      th.textContent = h;
-      th.style.textAlign = 'left';
-      th.style.border = '1px solid var(--border)';
-      th.style.padding = '6px 8px';
-      trh.appendChild(th);
-    });
-    thead.appendChild(trh);
-    table.appendChild(thead);
-    const tbody = document.createElement('tbody');
-    list.forEach(p=>{
-      const tr = document.createElement('tr');
-      const cells = [
-        '(select)',
-        p['Patient Code']||'',
-        p['Patient Name']||'',
-        p['Patient Age']||'',
-        p['Room']||'',
-        p['Admitting Provider']||'',
-        p['Diagnosis']||'',
-        p['Diet']||'',
-        p['Isolation']||'',
-        p['Comments']||''
-      ];
-      cells.forEach((val, idx)=>{
-        const td = document.createElement('td');
-        td.style.border = '1px solid var(--border)';
-        td.style.padding = '6px 8px';
-        if (idx===0){
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.dataset.code = p['Patient Code']||'';
-          cb.checked = ExportSel.has(p['Patient Code']);
-          cb.addEventListener('change', ()=>{
-            if (cb.checked) ExportSel.add(p['Patient Code']); else ExportSel.delete(p['Patient Code']);
-          });
-          td.textContent = '';
-          td.appendChild(cb);
-        }else{
-          td.textContent = val;
-        }
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    card.appendChild(table);
-    root.appendChild(card);
-  });
-  if (!secs.length){
-    const d = document.createElement('div');
-    d.className='muted small';
-    d.textContent='No patients match the current search.';
-    root.appendChild(d);
-  }
-}
-
-/* ===========================================
-   Print helpers & page builder
-   =========================================== */
-function firstLines(text, n=2){
-  const s = String(text == null ? '' : text);
-  if (!s) return '';
-  const lines = s.split(/\r?\n/).slice(0, n);
-  return lines.join('\n');
-}
-const A4_CONTENT_HEIGHT_PX = 1030;
-const HEAD_EST = 60;
-const ROW_EST_FACTOR = 2.2;
-function escapeHTML(s){ return String(s||'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-function ageYearsOnly(v){ const s=String(v||''); const m=s.match(/\b(\d{1,3})\b/); return m?m[1]:s; }
-function firstWord(s){ return String(s||'').trim().split(/\s+/)[0]||''; }
-
-function buildPrintPagesHTML(selectedCodes, options){
-  const { scalePercent=100, fontPx=12, fitOne=false } = options||{};
-  const usingSelected = selectedCodes && selectedCodes.length>0;
-  const pats = usingSelected
-    ? State.patients.filter(p=>selectedCodes.includes(p['Patient Code']))
-    : getPatientsForExportFiltered();
-
-  const bySec = new Map();
-  pats.forEach(p=>{
-    const sec=p.Section||'Default';
-    if (!bySec.has(sec)) bySec.set(sec, []);
-    bySec.get(sec).push(p);
-  });
-
-  const sections = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
-  const pages = sections.map(sec=>{
-    const list = bySec.get(sec);
-    list.sort((a,b)=>{
-      const ka = toRoomKey(a.Room);
-      const kb = toRoomKey(b.Room);
-      if (ka.num !== kb.num) return ka.num - kb.num;
-      return ka.raw.localeCompare(kb.raw);
-    });
-
-    let effectiveScale = scalePercent / 100;
-    if (fitOne){
-      const estHeight = HEAD_EST + (list.length * fontPx * ROW_EST_FACTOR);
-      const needed = A4_CONTENT_HEIGHT_PX / estHeight;
-      if (needed < effectiveScale) effectiveScale = Math.max(0.5, needed);
-    }
-
-    const rows = list.map(p=>{
-      const code   = escapeHTML(p['Patient Code']||'');
-      const name   = escapeHTML(p['Patient Name']||'');
-      const age    = escapeHTML(ageYearsOnly(p['Patient Age']||''));
-      const room   = escapeHTML(p['Room']||'');
-      const prov   = escapeHTML(firstWord(p['Admitting Provider']||''));
-      const cause  = escapeHTML(firstLines(p['Diagnosis']||'', 2));
-      const iso    = String(p['Isolation']||'').trim();
-      const note   = escapeHTML(p['Comments']||'');
-
-      const isoLower = iso.toLowerCase();
-      const isoCellStyle = (iso && isoLower !== 'standard')
-        ? ' style="background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact;"'
-        : '';
-
-      return `
-        <tr>
-          <td>${code}</td>
-          <td>${name}</td>
-          <td>${age}</td>
-          <td>${room}</td>
-          <td>${prov}</td>
-          <td>${cause}</td>
-          <td${isoCellStyle}>${escapeHTML(iso)}</td>
-          <td>${note}</td>
-        </tr>`;
-    }).join('\n');
-
-    const colgroup = `
-      <colgroup>
-        <col style="width:10%">
-        <col style="width:18%">
-        <col style="width:6%">
-        <col style="width:8%">
-        <col style="width:10%">
-        <col style="width:18%">
-        <col style="width:10%">
-        <col style="width:20%">
-      </colgroup>`;
-
-    const table = `
-      <div class="print-page">
-        <div class="print-scale" style="transform:scale(${effectiveScale}); transform-origin: top left; width:${(100/ effectiveScale).toFixed(2)}%; ">
-          <div class="print-head" style="margin-bottom:8px">
-            <div class="print-title">Patient List — Section: ${escapeHTML(sec)}</div>
-            <div class="print-sub">Generated: ${Utils.formatDateTime(new Date().toISOString())}</div>
-          </div>
-          <table class="print-table" style="font-size:${fontPx}px">
-            ${colgroup}
-            <thead>
-              <tr>
-                <th>Patient Code</th>
-                <th>Patient Name</th>
-                <th>Age</th>
-                <th>Room</th>
-                <th>Admitting Provider</th>
-                <th>Cause Of Admission</th>
-                <th>Isolation</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>${rows || '<tr><td colspan="8">No patients</td></tr>'}</tbody>
-          </table>
-        </div>
-      </div>`;
-
-    return table;
-  });
-
-  return pages.join('\n');
-}
-
-/* ===========================================
-   Print render & window.print (SINGLE definition)
-   =========================================== */
-// [IMPORTANT FIX] لا تكرار لتعريف هذه الدالة — هذا هو التعريف الوحيد
-function renderPrintRootAndPrint(){
-  const root = q('#print-root'); if (!root) { toast('Print root missing.','danger'); return; }
-  const selected = Array.from(ExportSel.values());
-  const scale = Math.max(50, Math.min(100, parseInt(q('#export-scale')?.value || '100', 10) || 100));
-  const fontPx = parseInt(q('#export-font')?.value || '12', 10) || 12;
-  const fitOne = !!q('#export-fit-one')?.checked;
-  // نجبر صفحة واحدة لكل قسم إذا تم اختيار fitOne
-  root.innerHTML = buildPrintPagesHTML(selected, { scalePercent: scale, fontPx, fitOne: true });
-  root.style.display = '';
-  document.body.setAttribute('data-printing','true');
-  window.print();
-  setTimeout(()=>{
-    document.body.removeAttribute('data-printing');
-    root.style.display='none';
-  }, 500);
-}
-
-/* ===========================================
-   Export modal events (delegation)
-   =========================================== */
-// [PATCH-EXP] Wire modal buttons for export (delegated)
-document.addEventListener('click', async (e)=>{
-  const inModal = !!e.target.closest('#export-modal');
-  if (!inModal) return;
-
-  if (e.target.closest('#btn-export-select-all')){
-    getPatientsForExportFiltered().forEach(p=> ExportSel.add(p['Patient Code']));
-    renderExportList();
-  }
-  if (e.target.closest('#btn-export-clear')){
-    ExportSel.clear();
-    renderExportList();
-  }
-  if (e.target.closest('#btn-export-move')){
-    const target = q('#export-move-target')?.value || 'Default';
-    const codes = Array.from(ExportSel.values());
-    if (!codes.length) { toast('No patients selected.','warn'); return; }
-    for (const code of codes){
-      await Sheets.writePatientField(code,'Section', target);
-      const i = State.patients.findIndex(p=>p['Patient Code']===code);
-      if (i>=0) State.patients[i]['Section'] = target;
-    }
-    renderExportList();
-    refreshSections();
-    toast('Moved selected patients.', 'success');
-  }
-  if (e.target.closest('#btn-export-print') || e.target.closest('#btn-export-print-footer')){
-    renderPrintRootAndPrint();
-  }
-});
-document.addEventListener('input', (e)=>{
-  if (e.target && e.target.id === 'export-search'){
-    renderExportList();
-  }
-});
-
-/* ===========================================
-   Bind top-level UI / actions
-   =========================================== */
+// ===== Bind UI =====
 function bindUI(){
   UI.init?.(Bus);
-
-  // [PATCH-EXP] ربط أزرار التصدير المتعددة الأسماء
-  const exportButtons = [
-    '#btn-export',
-    '#btn-export-patient-list',
-    '[data-action="export-patient-list"]'
-  ];
-  exportButtons.forEach(sel=>{
-    const el = q(sel);
-    if (el) el.addEventListener('click', openExportModal);
-  });
 
   // Tabs
   qa('.tabs .tab').forEach(t=>{
@@ -992,7 +629,7 @@ function bindUI(){
     q('#import-modal')?.classList.remove('hidden');
     q('#btn-import-confirm').onclick = async ()=>{
       const rows = Importer.consumeValidatedRows?.() || [];
-      if (!rows.length){ toast('No rows detected — check CSV headers like "Patient Code".','warn'); return; }
+      if (!rows.length){ alert('No rows to import.'); return; }
       const objs = rows.map(r=>({
         'Patient Code': r[0] || ('P'+Math.random().toString(36).slice(2,8).toUpperCase()),
         'Patient Name': r[1]||'','Patient Age': r[2]||'','Room': r[3]||'','Diagnosis': r[4]||'',
@@ -1012,7 +649,7 @@ function bindUI(){
     };
   });
 
-  // Export CSV Template
+  // Export template
   q('#btn-export-template')?.addEventListener('click', ()=>{
     const headers=[
       'Patient Code','Patient Name','Patient Age','Room','Diagnosis','Section',
@@ -1049,7 +686,7 @@ function bindUI(){
   // Refresh
   q('#btn-refresh')?.addEventListener('click', async ()=>{ await loadAllFromSheets(); toast('Data refreshed.','success'); });
 
-  // Close modals (generic)
+  // Close modals
   qa('[data-close-modal]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id=btn.getAttribute('data-close-modal'); if(!id) return;
@@ -1058,7 +695,7 @@ function bindUI(){
     });
   });
   
-  // All Summaries
+  // زر All Summaries
   q('#open-summaries')?.addEventListener('click', () => {
     Summaries.open();
   });
@@ -1113,78 +750,440 @@ function bindUI(){
       State.ctcae    = State.ctcae.filter(x=>x['Patient Code']!==theCode);
       State.labs     = State.labs.filter(x=>x['Patient Code']!==theCode);
       State.sel.delete(theCode);
-      renderPatientsList();
-      closePatientModal();
+      renderPatientsList(); Dashboard.clearEmpty?.(true); closePatientModal();
       toast('Patient deleted.','success');
       refreshSections();
-    }catch{ toast('Failed to delete patient.','danger'); }
+    }catch{ toast('Failed to delete patient.', 'danger'); }
+  });
+
+  // Mark done
+  q('#btn-mark-done')?.addEventListener('click', async ()=>{
+    const modal=q('#patient-modal'); const code=modal?.dataset.code;
+    const p = code ? State.patients.find(x=>x['Patient Code']===code) : State.activePatient;
+    if (!p) return toast('Select a patient first.','warn');
+    const newVal = !(p['Done']===true);
+    try{
+      p['Done']=newVal;
+      await Sheets.writePatientField(p['Patient Code'],'Done', newVal?'TRUE':'FALSE');
+      renderPatientsList();
+      toast(newVal?'Marked as Done.':'Marked as Open.','success');
+    }catch{ toast('Failed to update Done in Sheets.','danger'); }
+  });
+
+  // ===== Main list bulk actions =====
+  q('#plist-select-all')?.addEventListener('click', ()=>{
+    getFilteredPatients().forEach(p=>State.sel.add(p['Patient Code']));
+    renderPatientsList();
+    updateBulkBarState();
+  });
+  q('#plist-clear')?.addEventListener('click', ()=>{
+    State.sel.clear();
+    renderPatientsList();
+    updateBulkBarState();
+  });
+  q('#plist-move')?.addEventListener('click', async ()=>{
+    const target = q('#plist-move-target')?.value || 'Default';
+    const codes = Array.from(State.sel.values());
+    if (!codes.length) return toast('No patients selected.','warn');
+    if (!target) return;
+    try{
+      for (const code of codes){
+        await Sheets.writePatientField(code, 'Section', target);
+        const i = State.patients.findIndex(p=>p['Patient Code']===code);
+        if (i>=0) State.patients[i].Section = target;
+      }
+      State.sel.clear();
+      renderPatientsList();
+      populateMoveTargets();
+      toast(`Moved ${codes.length} patients to "${target}".`, 'success');
+      refreshSections();
+    }catch(e){ console.error(e); toast('Failed to move selected patients.','danger'); }
+  });
+  q('#plist-delete')?.addEventListener('click', async ()=>{
+    const codes = Array.from(State.sel.values());
+    if (!codes.length) return toast('No patients selected.','warn');
+    if (!confirm(`Delete ${codes.length} selected patients? This cannot be undone.`)) return;
+    try{
+      await Sheets.bulkDeletePatients(codes);
+      State.patients = State.patients.filter(p=>!codes.includes(p['Patient Code']));
+      State.esas     = State.esas.filter(r=>!codes.includes(r['Patient Code']));
+      State.ctcae    = State.ctcae.filter(r=>!codes.includes(r['Patient Code']));
+      State.labs     = State.labs.filter(r=>!codes.includes(r['Patient Code']));
+      State.sel.clear();
+      renderPatientsList();
+      toast('Selected patients deleted.','success');
+      refreshSections();
+    }catch(e){ console.error(e); toast('Failed to delete selected patients.','danger'); }
+  });
+
+  // Symptoms write-through
+  Bus.on('symptoms.changed', async ({ code, symptoms, notes })=>{
+    try{
+      const s=(symptoms||[]).join(', ');
+      const n=JSON.stringify(notes||{});
+      await Sheets.writePatientFields?.(code, { 'Symptoms':s, 'Symptoms Notes':n });
+      const idx=State.patients.findIndex(p=>p['Patient Code']===code);
+      if (idx>=0){ State.patients[idx]['Symptoms']=s; State.patients[idx]['Symptoms Notes']=n; }
+      renderPatientsList(); toast('Symptoms updated.','success');
+    }catch{ toast('Failed to sync symptoms.','danger'); }
+  });
+  
+  // Append calculator text to patient's Latest Notes (always append; never replace)
+  Bus.on('calc.appendToHPI', async ({ code, text }) => {
+    try{
+      const idx = State.patients.findIndex(p => p['Patient Code'] === code);
+      if (idx < 0) return toast('No active patient.', 'warn');
+
+      const current = State.patients[idx]['Latest Notes'] || '';
+      const sep = current && !/\n$/.test(current) ? '\n' : '';
+      const newVal = current + sep + text;
+
+      await Sheets.writePatientField(code, 'Latest Notes', newVal);
+      State.patients[idx]['Latest Notes'] = newVal;
+
+      toast('Added to Latest Notes.', 'success');
+    }catch(e){ console.error(e); toast('Failed to add to Latest Notes.', 'danger'); }
+  });
+
+  // Labs write-through
+  Bus.on('labs.changed', async ({ code, record })=>{
+    try{ await Sheets.writeLabs(code, record); Labs.upsertLocal?.(State.labs, record); toast('Synced','success'); }
+    catch{ toast('Failed to sync Labs.','danger'); }
   });
 }
-document.addEventListener('DOMContentLoaded', bindUI);
 
-/* ===========================================
-   Load from Sheets
-   =========================================== */
-async function loadAllFromSheets(){
-  State.loading=true;
-  try{
-    await Sheets.init(State.config);
-    const data=await Sheets.loadAll();
-    State.sections = data.sections?.length ? data.sections : ['Default'];
-    State.patients = Array.isArray(data.patients) ? data.patients : [];
-    State.esas     = Array.isArray(data.esas)     ? data.esas     : [];
-    State.ctcae    = Array.isArray(data.ctcae)    ? data.ctcae    : [];
-    State.labs     = Array.isArray(data.labs)     ? data.labs     : [];
-    if (!data.sections?.length) await Sheets.ensureSection('Default');
-    if (!State.sections.includes(State.activeSection)) State.activeSection = State.sections[0] || 'Default';
-
-    // === Apply preferences after pulling sections from Sheets ===
-    const prefs = getPreferences();
-    applyDensityPref(prefs);
-    applySectionOrderPref(prefs);
-
-    renderSections();
-    renderPatientsList();
-    Dashboard.clearEmpty?.(true);
-  }catch(e){
-    console.error(e);
-    toast('Failed to load from Google Sheets. Check Settings.','danger');
-  }finally{
-    State.loading=false;
-  }
-}
-
-/* ===========================================
-   Patient modal open/close
-   =========================================== */
-function openPatientModal(){
-  const m=q('#patient-modal'); if (!m) return;
-  m.classList.remove('hidden');
+// ===== Export Patient List (modal, selection, bulk ops, print) =====
+function openExportModal(){
+  const modal = q('#export-modal');
+  if (!modal) { toast('Export modal not found.', 'danger'); return; }
+  populateMoveTargets();
+  renderExportList();
+  modal.classList.remove('hidden');
   document.documentElement.style.overflow='hidden';
-  const onKey=(ev)=>{ if(ev.key==='Escape'){ ev.preventDefault(); closePatientModal(); document.removeEventListener('keydown',onKey);} };
-  document.addEventListener('keydown', onKey);
 }
-function closePatientModal(){
-  const m=q('#patient-modal'); if (!m) return;
-  m.classList.add('hidden');
+function closeExportModal(){
+  const modal = q('#export-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
   document.documentElement.style.overflow='';
 }
 
-/* ===========================================
-   Public Entry
-   =========================================== */
+// Internal selection model for export modal
+const ExportSel = new Set();
+function getPatientsForExportFiltered(){
+  const term = (q('#export-search')?.value || '').toLowerCase().trim();
+  const arr = State.patients.slice();
+  if (!term) return arr;
+  return arr.filter(p => JSON.stringify(p).toLowerCase().includes(term));
+}
+function renderExportList(){
+  const root = q('#export-list'); if (!root) return;
+  root.innerHTML = '';
+  const pats = getPatientsForExportFiltered();
+  const bySec = new Map();
+  pats.forEach(p=>{
+    const sec = p.Section || 'Default';
+    if (!bySec.has(sec)) bySec.set(sec, []);
+    bySec.get(sec).push(p);
+  });
+  const secs = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
+  secs.forEach(sec=>{
+    const list = bySec.get(sec) || [];
+    list.sort((a,b)=>{
+      const ka = toRoomKey(a.Room);
+      const kb = toRoomKey(b.Room);
+      if (ka.num !== kb.num) return ka.num - kb.num;
+      return ka.raw.localeCompare(kb.raw);
+    });
+    const card = document.createElement('div');
+    card.className = 'card';
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    head.innerHTML = '<div class="card-title">Section: '+sec+'</div>';
+    card.appendChild(head);
+    const table = document.createElement('table');
+    table.className = 'mono small';
+    table.style.width='100%';
+    table.style.borderCollapse='collapse';
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    // ملاحظة: جدول المعاينة داخل المودال لم نغيره (Diet موجود) لأنك طلبت التغيير للطباعة فقط.
+    ['Select','Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Cause Of Admission','Diet','Isolation','Note'].forEach(h=>{
+      const th = document.createElement('th');
+      th.textContent = h;
+      th.style.textAlign = 'left';
+      th.style.border = '1px solid var(--border)';
+      th.style.padding = '6px 8px';
+      th.style.background = 'rgba(124,156,255,.10)';
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    list.forEach(p=>{
+      const tr = document.createElement('tr');
+      const cells = [
+        '__select__',
+        p['Patient Code']||'',
+        p['Patient Name']||'',
+        p['Patient Age']||'',
+        p['Room']||'',
+        p['Admitting Provider']||'',
+        p['Diagnosis']||'',
+        p['Diet']||'',
+        p['Isolation']||'',
+        p['Comments']||''
+      ];
+      cells.forEach((val, idx)=>{
+        const td = document.createElement('td');
+        td.style.border = '1px solid var(--border)';
+        td.style.padding = '6px 8px';
+        if (idx===0){
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.dataset.code = p['Patient Code']||'';
+          cb.checked = ExportSel.has(cb.dataset.code);
+          cb.addEventListener('change', ()=>{
+            if (cb.checked) ExportSel.add(cb.dataset.code);
+            else ExportSel.delete(cb.dataset.code);
+          });
+          td.appendChild(cb);
+        } else {
+          td.textContent = val;
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    card.appendChild(table);
+    root.appendChild(card);
+  });
+  if (!secs.length){
+    const d = document.createElement('div');
+    d.className='muted small';
+    d.textContent='No patients match the current search.';
+    root.appendChild(d);
+  }
+}
+
+// ===== Print builder with scaling options (custom columns) =====
+function escapeHTML(s){ return String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function ageYearsOnly(v){
+  if (v==null) return '';
+  const m = String(v).match(/\d+/);
+  return m ? m[0] : String(v);
+}
+function firstWord(s){
+  const t = String(s||'').trim();
+  if (!t) return '';
+  const m = t.match(/^\S+/);
+  return m ? m[0] : t;
+}
+
+function buildPrintPagesHTML(selectedCodes, options){
+  const { scalePercent=100, fontPx=12, fitOne=false } = options||{};
+  const usingSelected = selectedCodes && selectedCodes.length>0;
+  const pats = usingSelected
+    ? State.patients.filter(p=>selectedCodes.includes(p['Patient Code']))
+    : getPatientsForExportFiltered();
+
+  // group by section
+  const bySec = new Map();
+  pats.forEach(p=>{
+    const sec=p.Section||'Default';
+    if (!bySec.has(sec)) bySec.set(sec, []);
+    bySec.get(sec).push(p);
+  });
+
+  const sections = Array.from(bySec.keys()).sort((a,b)=> a.localeCompare(b));
+  const A4_CONTENT_HEIGHT_PX = 1030; // تقريب
+  const HEAD_EST = 60;
+  const ROW_EST_FACTOR = 2.2;
+
+  const pages = sections.map(sec=>{
+    const list = bySec.get(sec);
+    list.sort((a,b)=>{
+      const ka = toRoomKey(a.Room);
+      const kb = toRoomKey(b.Room);
+      if (ka.num !== kb.num) return ka.num - kb.num;
+      return ka.raw.localeCompare(kb.raw);
+    });
+
+    // fit-one estimation
+    let effectiveScale = scalePercent / 100;
+    if (fitOne){
+      const estHeight = HEAD_EST + (list.length * fontPx * ROW_EST_FACTOR);
+      const needed = A4_CONTENT_HEIGHT_PX / estHeight;
+      if (needed < effectiveScale) effectiveScale = Math.max(0.5, needed);
+    }
+
+    // Build rows with transformed fields:
+    const rows = list.map(p=>{
+      const code   = escapeHTML(p['Patient Code']||'');
+      const name   = escapeHTML(p['Patient Name']||'');
+      const age    = escapeHTML(ageYearsOnly(p['Patient Age']||''));
+      const room   = escapeHTML(p['Room']||'');
+      const prov   = escapeHTML(firstWord(p['Admitting Provider']||'')); // first token only
+      const cause  = escapeHTML(p['Diagnosis']||'');
+      const iso    = String(p['Isolation']||'').trim();
+      const note   = escapeHTML(p['Comments']||'');
+
+      const isoLower = iso.toLowerCase();
+      const isoCellStyle = (iso && isoLower !== 'standard')
+        ? ' style="background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact;"'
+        : '';
+
+      return `<tr>
+        <td>${code}</td>
+        <td>${name}</td>
+        <td>${age}</td>
+        <td>${room}</td>
+        <td>${prov}</td>
+        <td>${cause}</td>
+        <td${isoCellStyle}>${escapeHTML(iso)}</td>
+        <td>${note}</td>
+      </tr>`;
+    }).join('');
+
+    const colgroup = `
+      <colgroup>
+        <col style="width:10%">
+        <col style="width:18%">
+        <col style="width:6%">
+        <col style="width:8%">
+        <col style="width:10%">
+        <col style="width:18%">
+        <col style="width:10%">
+        <col style="width:20%">
+      </colgroup>`;
+
+    const table = `
+      <div class="print-page">
+        <div class="print-scale" style="transform:scale(${effectiveScale}); transform-origin: top left; width:${(100/ effectiveScale).toFixed(2)}%; ">
+          <div class="print-head" style="margin-bottom:8px">
+            <div class="print-title">Patient List — Section: ${escapeHTML(sec)}</div>
+            <div class="print-sub">Generated: ${Utils.formatDateTime(new Date().toISOString())}</div>
+          </div>
+          <table class="print-table" style="font-size:${fontPx}px">
+            ${colgroup}
+            <thead>
+              <tr>
+                <th>Patient Code</th>
+                <th>Patient Name</th>
+                <th>Age</th>
+                <th>Room</th>
+                <th>Admitting Provider</th>
+                <th>Cause Of Admission</th>
+                <th>Isolation</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="8">No patients</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>`;
+
+    return table;
+  });
+
+  return pages.join('\n');
+}
+
+function renderPrintRootAndPrint(){
+  const root = q('#print-root'); if (!root) { toast('Print root missing.','danger'); return; }
+  const selected = Array.from(ExportSel.values());
+  const scale = Math.max(50, Math.min(100, parseInt(q('#export-scale')?.value || '100', 10) || 100));
+  const fontPx = parseInt(q('#export-font')?.value || '12', 10) || 12;
+  const fitOne = !!q('#export-fit-one')?.checked;
+  root.innerHTML = buildPrintPagesHTML(selected, { scalePercent: scale, fontPx, fitOne });
+  root.style.display = '';
+  document.body.setAttribute('data-printing','true');
+  window.print();
+  setTimeout(()=>{
+    document.body.removeAttribute('data-printing');
+    root.style.display='none';
+  }, 500);
+}
+
+// Wire modal buttons for export
+document.addEventListener('click', async (e)=>{
+  if (e.target.closest('#btn-export-patient-list')) { e.preventDefault(); openExportModal(); }
+  const inModal = e.target.closest('#export-modal'); 
+  if (!inModal) return;
+  if (e.target.closest('#btn-export-select-all')){
+    getPatientsForExportFiltered().forEach(p=> ExportSel.add(p['Patient Code']));
+    renderExportList();
+  }
+  if (e.target.closest('#btn-export-clear')){
+    ExportSel.clear();
+    renderExportList();
+  }
+  if (e.target.closest('#btn-export-move')){
+    const target = q('#export-move-target')?.value || 'Default';
+    const codes = Array.from(ExportSel.values());
+    if (!codes.length) { toast('No patients selected.','warn'); return; }
+    for (const code of codes){
+      await Sheets.writePatientField(code,'Section', target);
+      const i = State.patients.findIndex(p=>p['Patient Code']===code);
+      if (i>=0) State.patients[i].Section = target;
+    }
+    renderPatientsList();
+    renderExportList();
+    toast(`Moved ${codes.length} patients to "${target}".`,'success');
+    refreshSections();
+  }
+  if (e.target.closest('#btn-export-delete')){
+    const codes = Array.from(ExportSel.values());
+    if (!codes.length) { toast('No patients selected.','warn'); return; }
+    if (!confirm('Delete selected patients? This cannot be undone.')) return;
+    await Sheets.bulkDeletePatients(codes);
+    State.patients = State.patients.filter(p=>!codes.includes(p['Patient Code']));
+    State.esas     = State.esas.filter(r=>!codes.includes(r['Patient Code']));
+    State.ctcae    = State.ctcae.filter(r=>!codes.includes(r['Patient Code']));
+    State.labs     = State.labs.filter(r=>!codes.includes(r['Patient Code']));
+    ExportSel.clear();
+    renderPatientsList();
+    renderExportList();
+    toast(`Deleted ${codes.length} patients.`,'success');
+    refreshSections();
+  }
+  if (e.target.closest('#btn-export-print') || e.target.closest('#btn-export-print-footer')){
+    renderPrintRootAndPrint();
+  }
+});
+document.addEventListener('input', (e)=>{
+  if (e.target && e.target.id === 'export-search'){
+    renderExportList();
+  }
+});
+
+// ===== Public Entry =====
 export const App = {
-  async init(){
+  async start(){
+    // Apply motion multiplier before any UI renders/animations
     applyMotionSpeedFromStorage();
-    setupMobileUI();
+
+    // Apply density early (before rendering) for smoother first paint
+    try { applyDensityPref(getPreferences()); } catch {}
+
+    bindUI();
+    Patients.init?.(Bus, State);
+    ESAS.init?.(Bus, State);
+    CTCAE.init?.(Bus, State);
+    Labs.init?.(Bus, State);
+    Dashboard.init?.(Bus, State);
+    Importer.init?.(Bus, State);
+    AIModule.init?.(Bus, State);
+    Symptoms.init?.(Bus, State);
+    Summaries.init(Bus, State);
+    Calculators.init?.(Bus, State);
+
+    setupMobileUI();              // <— مضافة هنا
+
     await loadAllFromSheets();
     State.ready=true;
-     // ✅ Initialize modules that depend on Bus & State
-try { Symptoms.init?.(Bus, State); } catch(e){ console.warn('Symptoms init failed', e); }
-try { Summaries.init?.(Bus, State); } catch(e){ console.warn('Summaries init failed', e); }
   },
-  // [PATCH] Backward-compat alias
-  async start(){ return this.init(); },
   bus: Bus,
   state: State
 };

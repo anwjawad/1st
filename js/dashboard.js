@@ -1,11 +1,6 @@
 // js/dashboard.js
 // Patient Dashboard binder: populate bio fields, text areas, ESAS, CTCAE, Labs,
 // and collect all data for AI/local summary.
-//
-// [PATCH] UI-only rename:
-// - Keep "Diagnosis" as-is (original).
-// - Show "Diet" field with label "Today's Note" in the modal (UI only), while still
-//   binding/saving to the same Sheets field name "Diet" without any backend change.
 
 import { ESAS } from './esas.js';
 import { CTCAE } from './ctcae.js';
@@ -14,16 +9,14 @@ import { Utils } from './utils.js';
 
 let Bus, State;
 
-// نُبقي كلا الحقلين: Diagnosis و Diet.
-// التسمية لعرض Diet ستكون "Today's Note" فقط في الواجهة، أما الحفظ فيبقى على Diet.
 const BIO_FIELDS = [
   'Patient Code',
   'Patient Name',
   'Patient Age',
   'Room',
   'Admitting Provider',
-  'Diagnosis',  // ← يبقى كما هو
-  'Diet',       // ← سيُعرض اسمه "Today’s Note" في الواجهة فقط
+  'Diagnosis',
+  'Diet',
   'Isolation',
   'Comments'
 ];
@@ -64,22 +57,16 @@ export const Dashboard = {
     // تعبئة البايوغرافيا
     const bioGrid = document.getElementById('bio-grid');
     bioGrid.innerHTML = '';
-
-    // نعرض كل حقل كما هو، مع استثناء Diet: نغيّر التسمية فقط إلى "Today's Note"
     BIO_FIELDS.forEach(f => {
       const div = document.createElement('div');
       div.className = 'field';
-
       const label = document.createElement('span');
       label.className = 'label';
-      label.textContent = (f === 'Diet') ? "Today's Note" : f; // ← تغيير شكلي فقط
-
+      label.textContent = f;
       const inp = document.createElement('input');
       inp.type = 'text';
       inp.value = patient[f] || '';
-      // مهم: الربط يبقى على اسم الحقل الأصلي في الشيت
       inp.setAttribute('data-bind-field', f);
-
       div.appendChild(label);
       div.appendChild(inp);
       bioGrid.appendChild(div);

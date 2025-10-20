@@ -165,8 +165,6 @@ body{
 .card{ background: var(--card); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; }
 .card:hover{ transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,.25); }
 .card .card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px}
-.row-header, .card-head{ flex-wrap: nowrap; align-items: center; }
-
 .card-title{font-weight:800; font-size:16px; letter-spacing:.2px}
 .actions-row{display:flex; gap:8px; flex-wrap:wrap}
 
@@ -200,8 +198,6 @@ body{
   display:inline-flex; align-items:center; gap:6px;
   padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--border);
 }
-.room-badge{ flex-shrink: 0; white-space: nowrap; max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
-
 .status.open{background: color-mix(in oklab, var(--primary) 16%, transparent); color:#e8ecff}
 .status.done{background: color-mix(in oklab, var(--success) 18%, transparent); color:#dffbef; border-color: color-mix(in oklab, var(--success) 40%, var(--border) 60%)}
 
@@ -604,68 +600,4 @@ body:not(.sidebar-open) #sidebar {
 }
 
   .scrim{ backdrop-filter:none; }
-}
-
-/* ==================================================================
-   [PATCH] Motion & Transitions Restore — non-destructive
-   - Adds animation helpers without removing or overriding existing rules.
-   - Uses --motion-multiplier if present; otherwise falls back to 1.
-   - Respects prefers-reduced-motion.
-   ================================================================== */
-
-:root{
-  --motion-multiplier: var(--motion-multiplier, 1);
-  --ease-default: var(--ease-default, cubic-bezier(.2,.7,.2,1));
-  --t-fast: var(--t-fast, 160ms);
-  --t-med: var(--t-med, 220ms);
-  --t-slow: var(--t-slow, 320ms);
-  --speed-fast: calc(var(--t-fast) * var(--motion-multiplier)) var(--ease-default);
-  --speed-med:  calc(var(--t-med)  * var(--motion-multiplier)) var(--ease-default);
-  --speed-slow: calc(var(--t-slow) * var(--motion-multiplier)) var(--ease-default);
-}
-
-/* Keyframes (names unlikely to clash) */
-@keyframes pr-fade-in { from { opacity:0 } to { opacity:1 } }
-@keyframes pr-slide-up { from { transform: translateY(10px) } to { transform: translateY(0) } }
-@keyframes pr-scale-in { from { transform: scale(.98) } to { transform: scale(1) } }
-
-/* Patient cards gentle enter */
-#patients-list .patient-card{
-  will-change: transform, opacity;
-  animation: pr-fade-in calc(var(--t-med) * var(--motion-multiplier)) var(--ease-default) both,
-             pr-slide-up calc(var(--t-med) * var(--motion-multiplier)) var(--ease-default) both;
-}
-
-/* Section pills hover polish */
-#sections-list .pill{
-  transition: background-color var(--speed-med), border-color var(--speed-med), transform var(--speed-fast), box-shadow var(--speed-slow);
-}
-#sections-list .pill:hover{
-  transform: translateY(-1px);
-}
-
-/* Modal show/hide smoothing (without breaking existing styles) */
-.modal .modal-card{
-  transition: transform var(--speed-slow), opacity var(--speed-slow);
-  transform: translateY(-8px);
-  opacity: 0;
-}
-.modal:not(.hidden) .modal-card{
-  transform: translateY(0);
-  opacity: 1;
-}
-
-/* Drawer scrim fade */
-.scrim{
-  transition: opacity var(--speed-med), backdrop-filter var(--speed-med);
-  opacity: 0;
-}
-.sidebar-open #sidebar-scrim,
-.modal:not(.hidden) ~ #sidebar-scrim{
-  opacity: 1;
-}
-
-/* Reduced motion accessibility */
-@media (prefers-reduced-motion: reduce){
-  *{ animation: none !important; transition: none !important; }
 }
