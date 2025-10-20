@@ -51,7 +51,7 @@
     'Diagnosis': '60mm'
   };
 
-  // ---------- Style for modal + preview ----------
+  // ---------- Style for modal + preview + LOADER ----------
   (function injectLocalCSS(){
     if (document.getElementById('print-custom-style')) return;
     const css = `
@@ -79,6 +79,95 @@
         display: flex; flex-direction: column;
       }
       #custom-print-modal .modal-body { flex: 1 1 auto; overflow: auto; }
+
+      /* ===== Floating FULLSCREEN loader overlay (blur page) ===== */
+      #pc-loading { position:fixed; inset:0; display:grid; place-items:center;
+        z-index: 9999; background: rgba(8,10,18,.32); backdrop-filter: blur(6px) saturate(120%); }
+      #pc-loading.hidden { display:none; }
+      #pc-loading .loader { --time-animation:2s; --size:1.1; }
+
+      /* Base loader styles (Uiverse.io by andrew-manzyk) */
+      .loader {
+        --color-one: #ffbf48;
+        --color-two: #be4a1d;
+        --color-three: #ffbf4780;
+        --color-four: #bf4a1d80;
+        --color-five: #ffbf4740;
+        position: relative;
+        border-radius: 50%;
+        transform: scale(var(--size));
+        box-shadow:
+          0 0 25px 0 var(--color-three),
+          0 20px 50px 0 var(--color-four);
+        animation: colorize calc(var(--time-animation) * 3) ease-in-out infinite;
+      }
+      .loader::before {
+        content: "";
+        position: absolute; top: 0; left: 0; width: 100px; height: 100px;
+        border-radius: 50%;
+        border-top: solid 1px var(--color-one);
+        border-bottom: solid 1px var(--color-two);
+        background: linear-gradient(180deg, var(--color-five), var(--color-four));
+        box-shadow:
+          inset 0 10px 10px 0 var(--color-three),
+          inset 0 -10px 10px 0 var(--color-four);
+      }
+      .loader .box {
+        width: 100px; height: 100px;
+        background: linear-gradient(180deg, var(--color-one) 30%, var(--color-two) 70%);
+        mask: url(#clipping);
+        -webkit-mask: url(#clipping);
+      }
+      .loader svg { position: absolute; }
+      .loader svg #clipping { filter: contrast(15); animation: roundness calc(var(--time-animation) / 2) linear infinite; }
+      .loader svg #clipping polygon { filter: blur(7px); }
+      .loader svg #clipping polygon:nth-child(1) { transform-origin: 75% 25%; transform: rotate(90deg); }
+      .loader svg #clipping polygon:nth-child(2) { transform-origin: 50% 50%; animation: rotation var(--time-animation) linear infinite reverse; }
+      .loader svg #clipping polygon:nth-child(3) { transform-origin: 50% 60%; animation: rotation var(--time-animation) linear infinite; animation-delay: calc(var(--time-animation) / -3); }
+      .loader svg #clipping polygon:nth-child(4) { transform-origin: 40% 40%; animation: rotation var(--time-animation) linear infinite reverse; }
+      .loader svg #clipping polygon:nth-child(5) { transform-origin: 40% 40%; animation: rotation var(--time-animation) linear infinite reverse; animation-delay: calc(var(--time-animation) / -2); }
+      .loader svg #clipping polygon:nth-child(6) { transform-origin: 60% 40%; animation: rotation var(--time-animation) linear infinite; }
+      .loader svg #clipping polygon:nth-child(7) { transform-origin: 60% 40%; animation: rotation var(--time-animation) linear infinite; animation-delay: calc(var(--time-animation) / -1.5); }
+
+      @keyframes rotation { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      @keyframes roundness {
+        0%,60%,100% { filter: contrast(15); }
+        20%,40% { filter: contrast(3); }
+      }
+      @keyframes colorize {
+        0% { filter: hue-rotate(0deg); }
+        20% { filter: hue-rotate(-30deg); }
+        40% { filter: hue-rotate(-60deg); }
+        60% { filter: hue-rotate(-90deg); }
+        80% { filter: hue-rotate(-45deg); }
+        100% { filter: hue-rotate(0deg); }
+      }
+
+      /* Theme-aware colors */
+      /* neon → teal/cyan */
+      [data-theme="neon"] #pc-loading .loader {
+        --color-one: #00ffd1;
+        --color-two: #00a3ff;
+        --color-three: #00ffd180;
+        --color-four: #00a3ff80;
+        --color-five: #00ffd140;
+      }
+      /* ocean → blue tones */
+      [data-theme="ocean"] #pc-loading .loader {
+        --color-one: #40a0ff;
+        --color-two: #2463ff;
+        --color-three: #40a0ff80;
+        --color-four: #2463ff80;
+        --color-five: #40a0ff40;
+      }
+      /* rose → pink/magenta */
+      [data-theme="rose"] #pc-loading .loader {
+        --color-one: #ff64a0;
+        --color-two: #ff3c7d;
+        --color-three: #ff64a080;
+        --color-four: #ff3c7d80;
+        --color-five: #ff64a040;
+      }
     `.trim();
     const s = document.createElement('style');
     s.id='print-custom-style'; s.textContent=css; document.head.appendChild(s);
@@ -183,6 +272,46 @@
         document.documentElement.style.overflow = '';
       }
     });
+  }
+
+  // ---------- Loader overlay scaffold ----------
+  function ensureLoader(){
+    if (document.getElementById('pc-loading')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'pc-loading';
+    wrap.className = 'hidden';
+    wrap.setAttribute('aria-hidden','true');
+    wrap.innerHTML = `
+      <div class="loader" role="status" aria-label="Loading">
+        <div class="box"></div>
+        <svg width="100" height="100" viewBox="0 0 100 100" aria-hidden="true">
+          <defs>
+            <mask id="clipping">
+              <polygon fill="black" points="0,0 100,0 100,100 0,100"></polygon>
+              <polygon fill="white" points="50,0 100,50 50,100 0,50"></polygon>
+              <polygon fill="white" points="50,10 90,50 50,90 10,50"></polygon>
+              <polygon fill="white" points="60,10 90,50 60,90 30,50"></polygon>
+              <polygon fill="white" points="40,10 70,50 40,90 10,50"></polygon>
+              <polygon fill="white" points="55,20 80,50 55,80 30,50"></polygon>
+              <polygon fill="white" points="45,20 70,50 45,80 20,50"></polygon>
+            </mask>
+          </defs>
+        </svg>
+      </div>
+    `;
+    document.body.appendChild(wrap);
+  }
+  function showLoader(){
+    ensureLoader();
+    const el = document.getElementById('pc-loading');
+    el.classList.remove('hidden');
+    document.documentElement.style.overflow='hidden';
+  }
+  function hideLoader(){
+    const el = document.getElementById('pc-loading');
+    if (!el) return;
+    el.classList.add('hidden');
+    document.documentElement.style.overflow='';
   }
 
   function openModal(){
@@ -486,11 +615,17 @@
 
   // ---------- Wire modal behavior ----------
   btn.addEventListener('click', async ()=>{
-    ensureModal();
-    renderWidthInputs();          // defaults filled here
-    await snapshot();
-    openModal();
-    renderPreview();
+    // Show themed loader + blur page while preparing modal
+    showLoader();
+    try{
+      ensureModal();
+      renderWidthInputs();          // defaults filled here
+      await snapshot();             // can take a bit → keep loader visible
+      openModal();                  // show the modal
+      renderPreview();              // fill sample preview
+    } finally {
+      hideLoader();                 // always hide, even if something failed
+    }
   });
 
   // Apply button for manual preview refresh
