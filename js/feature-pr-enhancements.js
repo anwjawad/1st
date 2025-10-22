@@ -1,7 +1,7 @@
 // feature-pr-enhancements.js
 // Enhancements (no core edits): room badge, show Diet on cards, rename Diet→Today's notes,
 // staggered slide-in animations for cards + modal, full symptoms on cards + add to summaries.
-// NEW: Per-card Highlight toggle (⭐) with persistent state in localStorage.
+// UPDATED: Highlight toggle (⭐) persisted in Google Sheet via Patients.Highlighted.
 
 (async function init() {
   // ===== Helpers =====
@@ -26,30 +26,60 @@
     try{
       const data = await Sheets.loadAll();
       byCode = new Map((data?.patients||[]).map(p=>[p['Patient Code'], p]));
+      // بعد إعادة التحميل، طبّق حالات التظليل الحالية على البطاقات
+      setTimeout(()=>{
+        document.querySelectorAll('#patients-list .patient-card').forEach(card=>{
+          applyHighlightState(card, card.dataset.code || '');
+        });
+      }, 0);
     }catch{ /* ignore (will retry on refresh) */ }
   }
   await refreshCache();
 
-  // ===== Highlight (persistent) =====
-  const HL_KEY = 'pr.highlighted.codes';
-  function readHL(){
-    try{ const a=JSON.parse(localStorage.getItem(HL_KEY)||'[]'); return Array.isArray(a)? new Set(a) : new Set(); }
-    catch{ return new Set(); }
+  // ===== Highlight (persisted in Sheet) =====
+  function isHighlighted(code){
+    if (!code) return false;
+    const p = byCode.get(code);
+    return p ? (Sheets.isHighlightedRow ? Sheets.isHighlightedRow(p) : false) : false;
   }
-  function writeHL(set){
-    try{ localStorage.setItem(HL_KEY, JSON.stringify(Array.from(set.values()))); }catch{}
-  }
-  const highlighted = readHL();
-  function isHighlighted(code){ return !!(code && highlighted.has(code)); }
-  function toggleHighlight(code, on){
+
+  async function toggleHighlight(code, nextOn){
     if (!code) return;
-    if (on===undefined) on = !highlighted.has(code);
-    if (on) highlighted.add(code); else highlighted.delete(code);
-    writeHL(highlighted);
-    // حدّث الكارد إن كان موجودًا
+    // إذا ما تم تحديد الحالة المطلوبة، اعكس الحالية
+    if (nextOn === undefined) nextOn = !isHighlighted(code);
+
+    // تطبيق تفاؤلي على الواجهة
     const card = document.querySelector(`.patient-card[data-code="${CSS.escape(code)}"]`);
-    if (card) applyHighlightState(card, code);
+    // خزّن القيمة القديمة من الكاش
+    const old = isHighlighted(code);
+    applyUI(code, nextOn);
+
+    try{
+      await Sheets.setHighlighted(code, !!nextOn);
+      // حدّث الكاش المحلي لنفس السطر (إن وجد)
+      const p = byCode.get(code);
+      if (p) p['Highlighted'] = nextOn ? 'TRUE' : 'FALSE';
+    }catch(err){
+      // تراجع UI عند الفشل
+      console.error('Highlight update failed:', err);
+      applyUI(code, old);
+      alert('Failed to update highlight in the sheet. Please try again.');
+    }
   }
+
+  function applyUI(code, on){
+    const card = document.querySelector(`.patient-card[data-code="${CSS.escape(code)}"]`);
+    if (card){
+      card.classList.toggle('pr-highlighted', !!on);
+      const btn = card.querySelector('.pr-hl-btn');
+      if (btn){
+        btn.setAttribute('aria-pressed', on?'true':'false');
+        btn.title = on ? 'Remove highlight' : 'Highlight this patient';
+        btn.innerHTML = on ? '⭐' : '☆';
+      }
+    }
+  }
+
   function applyHighlightState(card, code){
     const on = isHighlighted(code);
     card.classList.toggle('pr-highlighted', on);
@@ -219,7 +249,7 @@
       });
     }
 
-    // طبّق حالة التظليل الحالية
+    // طبّق حالة التظليل الحالية (من الشيت)
     applyHighlightState(card, code);
   }
 
@@ -288,9 +318,8 @@
   // Listen to Refresh to keep cache fresh
   document.getElementById('btn-refresh')?.addEventListener('click', async ()=>{
     await refreshCache();
-    // re-enhance after data reload
+    // re-enhance after data reload (تطبيق حالات Highlight الحالية)
     setTimeout(()=>{ 
-      // تأكد من تطبيق التظليل بعد إعادة التحميل
       Array.from(document.querySelectorAll('#patients-list .patient-card')).forEach(card=>{
         applyHighlightState(card, card.dataset.code || '');
       });
