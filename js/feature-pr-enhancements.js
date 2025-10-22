@@ -1,6 +1,7 @@
 // feature-pr-enhancements.js
 // Enhancements (no core edits): room badge, show Diet on cards, rename Diet→Today's notes,
 // staggered slide-in animations for cards + modal, full symptoms on cards + add to summaries.
+// NEW: Per-card Highlight toggle (⭐) with persistent state in localStorage.
 
 (async function init() {
   // ===== Helpers =====
@@ -29,7 +30,38 @@
   }
   await refreshCache();
 
-  // ===== Styles injection (badge + animations) =====
+  // ===== Highlight (persistent) =====
+  const HL_KEY = 'pr.highlighted.codes';
+  function readHL(){
+    try{ const a=JSON.parse(localStorage.getItem(HL_KEY)||'[]'); return Array.isArray(a)? new Set(a) : new Set(); }
+    catch{ return new Set(); }
+  }
+  function writeHL(set){
+    try{ localStorage.setItem(HL_KEY, JSON.stringify(Array.from(set.values()))); }catch{}
+  }
+  const highlighted = readHL();
+  function isHighlighted(code){ return !!(code && highlighted.has(code)); }
+  function toggleHighlight(code, on){
+    if (!code) return;
+    if (on===undefined) on = !highlighted.has(code);
+    if (on) highlighted.add(code); else highlighted.delete(code);
+    writeHL(highlighted);
+    // حدّث الكارد إن كان موجودًا
+    const card = document.querySelector(`.patient-card[data-code="${CSS.escape(code)}"]`);
+    if (card) applyHighlightState(card, code);
+  }
+  function applyHighlightState(card, code){
+    const on = isHighlighted(code);
+    card.classList.toggle('pr-highlighted', on);
+    const btn = card.querySelector('.pr-hl-btn');
+    if (btn){
+      btn.setAttribute('aria-pressed', on?'true':'false');
+      btn.title = on ? 'Remove highlight' : 'Highlight this patient';
+      btn.innerHTML = on ? '⭐' : '☆';
+    }
+  }
+
+  // ===== Styles injection (badge + animations + highlight) =====
   (function injectCSS(){
     if (document.getElementById('pr-enhance-style')) return;
     const css = `
@@ -66,6 +98,31 @@
 
       /* Symptom pill styling reuse */
       .row-chip.pr-sym { background: color-mix(in oklab, var(--primary-2) 18%, transparent); }
+
+      /* === Highlight button & state === */
+      .pr-hl-btn {
+        display:inline-flex; align-items:center; justify-content:center;
+        width:28px; height:28px; border-radius:999px; border:1px solid var(--border);
+        background: var(--glass); cursor:pointer; font-size:16px; line-height:1;
+        transition: transform .12s ease, box-shadow .12s ease, background .2s ease;
+      }
+      .pr-hl-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,.15); }
+      .pr-hl-btn[aria-pressed="true"] { background: color-mix(in oklab, var(--primary) 18%, var(--glass)); border-color: color-mix(in oklab, var(--primary) 40%, var(--border)); }
+
+      .patient-card.pr-highlighted {
+        position: relative;
+        border: 2px solid color-mix(in oklab, var(--primary) 55%, transparent) !important;
+        box-shadow: 0 8px 40px color-mix(in oklab, var(--primary) 30%, transparent);
+        border-radius: 12px;
+      }
+      .patient-card.pr-highlighted::after {
+        content: '⭐ Highlighted';
+        position: absolute; top: -10px; right: 8px;
+        padding: 2px 8px; font-size: 12px; font-weight: 700; letter-spacing:.2px;
+        color: var(--fg); background: color-mix(in oklab, var(--primary) 22%, var(--card));
+        border: 1px solid color-mix(in oklab, var(--primary) 40%, var(--border));
+        border-radius: 999px;
+      }
     `.trim();
     const s = document.createElement('style');
     s.id = 'pr-enhance-style';
@@ -89,7 +146,7 @@
     const code = card.dataset.code || '';
     const p = byCode.get(code);
 
-    // 1) Room badge: transform meta "… • Room 23 • …" → add badge
+    // 1) Room badge
     const meta = card.querySelector('.row-sub');
     if (meta && !meta.__prRoomDone) {
       meta.__prRoomDone = true;
@@ -103,7 +160,7 @@
       }
     }
 
-    // 2) Diet on card (as chip) – label becomes Today's notes (shape فقط)
+    // 2) Diet on card (as chip)
     if (p && (p['Diet']||'').trim()) {
       const tags = card.querySelector('.row-tags');
       if (tags && !tags.querySelector('.pr-diet')) {
@@ -137,6 +194,33 @@
         }
       }
     }
+
+    // 6) Inject highlight control in header (left side before status badge)
+    const header = card.querySelector('.row-header');
+    if (header && !card.querySelector('.pr-hl-btn')) {
+      const btn = document.createElement('button');
+      btn.className = 'pr-hl-btn';
+      btn.type = 'button';
+      btn.title = 'Highlight this patient';
+      btn.setAttribute('aria-pressed', 'false');
+
+      // مكان الزر: قبل شارة الحالة (badge) ليكون دائمًا ظاهرًا
+      const statusBadge = header.querySelector('.status');
+      if (statusBadge && statusBadge.parentNode) {
+        statusBadge.parentNode.insertBefore(btn, statusBadge);
+      } else {
+        header.appendChild(btn);
+      }
+
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const next = !isHighlighted(code);
+        toggleHighlight(code, next);
+      });
+    }
+
+    // طبّق حالة التظليل الحالية
+    applyHighlightState(card, code);
   }
 
   // Enhance all current cards
@@ -201,14 +285,17 @@
     };
   }
 
-  // ===== 4) Modal animation already via CSS; ensure class toggling happens
-  // (we use the existing show/hide behavior; CSS targets #patient-modal:not(.hidden))
-
-  // ===== Listen to Refresh to keep cache fresh =====
+  // Listen to Refresh to keep cache fresh
   document.getElementById('btn-refresh')?.addEventListener('click', async ()=>{
     await refreshCache();
     // re-enhance after data reload
-    setTimeout(enhanceAllCards, 400);
+    setTimeout(()=>{ 
+      // تأكد من تطبيق التظليل بعد إعادة التحميل
+      Array.from(document.querySelectorAll('#patients-list .patient-card')).forEach(card=>{
+        applyHighlightState(card, card.dataset.code || '');
+      });
+      enhanceAllCards();
+    }, 400);
   });
 
   // Also periodically refresh cache lightly (optional)
