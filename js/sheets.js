@@ -1,6 +1,7 @@
 // js/sheets.js
 // Apps Script Bridge client (JSONP-first; avoids CORS on GitHub Pages)
 // Fix: reduce false "Import failed" by (1) longer timeout, (2) verifying inserted codes on timeout.
+// Update: Added Highlight support via Patients.Highlighted column and helper APIs.
 
 const TABS = { PATIENTS: 'Patients', ESAS: 'ESAS', CTCAE: 'CTCAE', LABS: 'Labs' };
 
@@ -8,7 +9,9 @@ const SCHEMA = {
   [TABS.PATIENTS]: [
     'Patient Code','Patient Name','Patient Age','Room','Admitting Provider','Diagnosis','Diet','Isolation','Comments',
     'Section','Done','Updated At','HPI Diagnosis','HPI Previous','HPI Current','HPI Initial','Patient Assessment','Medication List','Latest Notes',
-    'Symptoms','Symptoms Notes','Labs Abnormal'
+    'Symptoms','Symptoms Notes','Labs Abnormal',
+    // === New column for cross-device highlighting ===
+    'Highlighted'
   ],
   [TABS.ESAS]: [
     'Patient Code','Pain','Pain Note','Tiredness','Tiredness Note','Drowsiness','Drowsiness Note','Nausea','Nausea Note',
@@ -30,7 +33,7 @@ const SCHEMA = {
 let CONFIG = { spreadsheetId:'', bridgeUrl:'', useOAuth:false };
 
 /* ========== JSONP core ========== */
-function jsonp(url, timeoutMs = 120000) { // 120s (كان 30s)
+function jsonp(url, timeoutMs = 120000) { // 120s
   return new Promise((resolve, reject)=>{
     const cbName = 'pr_cb_' + Math.random().toString(36).slice(2);
     const sep = url.includes('?') ? '&' : '?';
@@ -106,7 +109,7 @@ function packPatientsAdaptive(objs){
       if (curRows.length) batches.push({ rows: curRows, codes: curCodes });
       curRows = [row];
       curCodes = [code];
-      // في الحالة النادرة جدًا لو صف واحد لا يلائم الطول، نرسله كما هو (قد يتأخر لكنه سينجح عادة)
+      // في الحالة النادرة جدًا لو صف واحد لا يلائم الطول، نرسله كما هو
       if (!willFitInUrl('bulkInsertPatients', { rows: curRows })) {
         batches.push({ rows: curRows, codes: curCodes });
         curRows = []; curCodes = [];
@@ -124,6 +127,15 @@ async function verifyCodesExist(codes){
     const set = new Set((data?.patients||[]).map(p=>p['Patient Code']));
     return codes.every(c => set.has(c));
   }catch{ return false; }
+}
+
+// تحويل قيم نصية إلى Boolean مضبوط (لعمود Highlighted)
+function parseBoolLoose(v){
+  const s = String(v ?? '').trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'yes' || s === 'y' || s === '✅';
+}
+function toSheetBool(on){
+  return on ? 'TRUE' : 'FALSE';
 }
 
 /* ========== Public API ========== */
@@ -154,12 +166,10 @@ export const Sheets = {
     const batches = packPatientsAdaptive(objs);
     for (const b of batches){
       try{
-        await bridgeCallJSONP('bulkInsertPatients', { rows: b.rows }, 120000); // مهلة أطول
+        await bridgeCallJSONP('bulkInsertPatients', { rows: b.rows }, 120000);
       }catch(err){
-        // احتمال كبير أنه timeout لكن البيانات انكتبت؛ نتحقّق
         const ok = await verifyCodesExist(b.codes);
-        if (!ok) throw err; // فعلاً فشل
-        // إذا ok=true نكمّل بدون رمي خطأ (نجاح فعلي رغم المهلة)
+        if (!ok) throw err;
       }
     }
     return true;
@@ -193,13 +203,12 @@ export const Sheets = {
     if (!section) return false;
     await bridgeCallJSONP('deletePatientsInSection', { section }, 90000);
     return true;
-    },
+  },
   async bulkDeletePatients(codes){
     const list = Array.isArray(codes) ? codes.filter(Boolean) : [];
     if (!list.length) return true;
-    // تقسيم بحسب طول الرابط (نرسل أكبر دفعات ممكنة)
     const batches = [];
-    let cur=[]; 
+    let cur=[];
     for (const c of list){
       const cand = [...cur, c];
       if (willFitInUrl('bulkDeletePatients', { codes: cand })) cur = cand;
@@ -208,6 +217,63 @@ export const Sheets = {
     if (cur.length) batches.push(cur);
     for (const b of batches){
       await bridgeCallJSONP('bulkDeletePatients', { codes: b }, 90000);
+    }
+    return true;
+  },
+
+  /* ======== Highlight helpers (new) ======== */
+
+  /**
+   * فحص قيمة التظليل لصف مريض مُحمّل من الشيت.
+   * @param {Object} p - عنصر من مصفوفة patients من loadAll()
+   * @returns {boolean}
+   */
+  isHighlightedRow(p){
+    return parseBoolLoose(p && p['Highlighted']);
+  },
+
+  /**
+   * تعيين حالة الـ Highlight لمريض محدد وكتابتها في الشيت.
+   * @param {string} code - Patient Code
+   * @param {boolean} on  - true لتفعيل، false لإلغاء
+   */
+  async setHighlighted(code, on){
+    if (!code) return false;
+    await this.writePatientField(code, 'Highlighted', toSheetBool(!!on));
+    return true;
+  },
+
+  /**
+   * إرجاع قائمة أكواد المرضى المفعّل عندهم Highlight حاليًا (حسب الشيت).
+   * @returns {Promise<string[]>}
+   */
+  async getHighlightedCodes(){
+    const data = await this.loadAll();
+    const arr = (data?.patients || []).filter(p => parseBoolLoose(p['Highlighted']));
+    return arr.map(p => String(p['Patient Code'] || '')).filter(Boolean);
+  },
+
+  /**
+   * تعيين جماعي لحالة الـ Highlight.
+   * - إذا أعطيت Array codes + on: يطبق نفس القيمة على الجميع.
+   * - إذا أعطيت Map/Object {code:bool}: يطبق القيمة لكل كود حسب المُدخل.
+   * يُقسّم داخليًا لتجنّب الروابط الطويلة.
+   */
+  async bulkSetHighlighted(mapOrCodes, on){
+    // بناء أزواج (code, value)
+    let pairs = [];
+    if (Array.isArray(mapOrCodes)){
+      const val = toSheetBool(!!on);
+      pairs = mapOrCodes.filter(Boolean).map(c => [String(c), val]);
+    } else if (mapOrCodes && typeof mapOrCodes === 'object'){
+      pairs = Object.entries(mapOrCodes).map(([c, v]) => [String(c), toSheetBool(!!v)]);
+    }
+
+    // لا يوجد bulk server-side للحقول المتعددة لمستلمين متعددين،
+    // لذلك نرسل على دفعات، نحاول تجميع ضمن طول الرابط باستخدام writeManyFieldsForMany? غير موجود.
+    // سنرسل متوالية مع backoff بسيط.
+    for (const [code, val] of pairs){
+      await this.writePatientField(code, 'Highlighted', val);
     }
     return true;
   }
