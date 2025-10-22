@@ -1,7 +1,7 @@
 // feature-pr-enhancements.js
 // Enhancements (no core edits): room badge, show Diet on cards, rename Diet→Today's notes,
 // staggered slide-in animations for cards + modal, full symptoms on cards + add to summaries.
-// UPDATED: Highlight toggle (⭐) persisted in Google Sheet via Patients.Highlighted.
+// UPDATED: Highlight toggle (⭐) with Sheet persistence; falls back to [HL] tag in Comments if 'Highlighted' field is unavailable.
 
 (async function init() {
   // ===== Helpers =====
@@ -36,37 +36,31 @@
   }
   await refreshCache();
 
-  // ===== Highlight (persisted in Sheet) =====
+  // ===== Highlight logic (Sheet + fallback to Comments [HL]) =====
+  const HL_TAG = '[HL]';
+
+  function hasHLTagInComments(p){
+    const c = String(p?.['Comments'] ?? '');
+    return c.includes(HL_TAG);
+  }
+
+  function normalizeBool(v){
+    const s = String(v ?? '').trim().toLowerCase();
+    return s === 'true' || s === '1' || s === 'yes' || s === 'y' || s === '✅';
+  }
+
+  // هل المريض مفعّل له Highlight؟ (يفضّل حقل Highlighted، وإلا fallback على Comments)
   function isHighlighted(code){
     if (!code) return false;
     const p = byCode.get(code);
-    return p ? (Sheets.isHighlightedRow ? Sheets.isHighlightedRow(p) : false) : false;
-  }
-
-  async function toggleHighlight(code, nextOn){
-    if (!code) return;
-    // إذا ما تم تحديد الحالة المطلوبة، اعكس الحالية
-    if (nextOn === undefined) nextOn = !isHighlighted(code);
-
-    // تطبيق تفاؤلي على الواجهة
-    const card = document.querySelector(`.patient-card[data-code="${CSS.escape(code)}"]`);
-    // خزّن القيمة القديمة من الكاش
-    const old = isHighlighted(code);
-    applyUI(code, nextOn);
-
-    try{
-      await Sheets.setHighlighted(code, !!nextOn);
-      // حدّث الكاش المحلي لنفس السطر (إن وجد)
-      const p = byCode.get(code);
-      if (p) p['Highlighted'] = nextOn ? 'TRUE' : 'FALSE';
-    }catch(err){
-      // تراجع UI عند الفشل
-      console.error('Highlight update failed:', err);
-      applyUI(code, old);
-      alert('Failed to update highlight in the sheet. Please try again.');
+    if (!p) return false;
+    if ('Highlighted' in p && String(p['Highlighted']).trim() !== '') {
+      return normalizeBool(p['Highlighted']);
     }
+    return hasHLTagInComments(p);
   }
 
+  // تطبيق UI لنتيجة معينة
   function applyUI(code, on){
     const card = document.querySelector(`.patient-card[data-code="${CSS.escape(code)}"]`);
     if (card){
@@ -88,6 +82,63 @@
       btn.setAttribute('aria-pressed', on?'true':'false');
       btn.title = on ? 'Remove highlight' : 'Highlight this patient';
       btn.innerHTML = on ? '⭐' : '☆';
+    }
+  }
+
+  // تعديل Comments بإضافة/حذف الوسم [HL]
+  function updateCommentsHLText(current, wantOn){
+    const c = String(current ?? '');
+    const has = c.includes(HL_TAG);
+    if (wantOn && !has) {
+      // أضف الوسم بشكل أنيق في بداية التعليق (أو فراغ إن فاضي)
+      return (c.trim().length ? `${HL_TAG} ${c}` : HL_TAG);
+    }
+    if (!wantOn && has) {
+      return c.replace(HL_TAG, '').replace(/\s{2,}/g, ' ').trim();
+    }
+    return c;
+  }
+
+  // Toggle مع محاولة الكتابة إلى Highlighted، والـ fallback إلى Comments عند فشل الحقل
+  async function toggleHighlight(code, nextOn){
+    if (!code) return;
+    const p = byCode.get(code) || {};
+    const old = isHighlighted(code);
+    if (nextOn === undefined) nextOn = !old;
+
+    // Optimistic UI
+    applyUI(code, nextOn);
+
+    // 1) حاول نكتب إلى حقل Highlighted (إذا السيرفر يدعمه)
+    try{
+      await Sheets.setHighlighted(code, !!nextOn); // تعتمد على sheets.js
+      // حدّث الكاش المحلي
+      if (p) p['Highlighted'] = nextOn ? 'TRUE' : 'FALSE';
+      return;
+    }catch(err){
+      const msg = String(err?.message || err || '');
+      // إن لم تكن مشكلة "Invalid field" رجّع UI وتوقّف
+      if (!/Invalid field: ?Highlighted/i.test(msg)) {
+        console.error('Highlight update failed:', err);
+        applyUI(code, old);
+        alert('Failed to update highlight. Please try again.');
+        return;
+      }
+      // Otherwise: ننتقل لـ fallback
+    }
+
+    // 2) Fallback إلى Comments بإدراج/حذف [HL]
+    try{
+      const newComments = updateCommentsHLText(p['Comments'], !!nextOn);
+      await Sheets.writePatientField(code, 'Comments', newComments);
+      // حدّث الكاش
+      p['Comments'] = newComments;
+      // لا تغيّر p['Highlighted'] هنا (حتى لا نخلط بين الآليتين)
+    }catch(err2){
+      console.error('Fallback to Comments failed:', err2);
+      // تراجع UI لو فشل الاثنان
+      applyUI(code, old);
+      alert('Failed to update highlight (fallback). Please try again.');
     }
   }
 
@@ -234,7 +285,6 @@
       btn.title = 'Highlight this patient';
       btn.setAttribute('aria-pressed', 'false');
 
-      // مكان الزر: قبل شارة الحالة (badge) ليكون دائمًا ظاهرًا
       const statusBadge = header.querySelector('.status');
       if (statusBadge && statusBadge.parentNode) {
         statusBadge.parentNode.insertBefore(btn, statusBadge);
@@ -249,7 +299,7 @@
       });
     }
 
-    // طبّق حالة التظليل الحالية (من الشيت)
+    // طبّق حالة التظليل الحالية (من الشيت أو من Comments fallback)
     applyHighlightState(card, code);
   }
 
@@ -267,11 +317,9 @@
 
   // ===== 3) Rename UI label "Diet" → "Today's notes" (visual only) + affect summaries text
   function renameDietLabels(root=document){
-    // Any field label with exact "Diet" → "Today's notes"
     root.querySelectorAll('.field .label, label.field .label, .label').forEach(el=>{
       if (String(el.textContent).trim() === 'Diet') el.textContent = "Today's notes";
     });
-    // In any static text blocks that show "Diet:" lines
     root.querySelectorAll('*').forEach(el=>{
       if (el.childNodes && el.childNodes.length===1 && el.childNodes[0].nodeType===3) {
         const t = el.textContent;
@@ -295,13 +343,10 @@
       const txt = orig(bundle) || '';
       const p = bundle?.patient || null;
 
-      // Rename the Diet line label only (keep the same data value)
       const renamed = txt.replace(/^Diet:/m, "Today's notes:");
-
-      // Append Symptoms block (full)
       let symBlock = '';
       if (p) {
-        const syms = fullSymptomsString(p);
+        const syms = (p?.['Symptoms']||'').split(',').map(x=>x.trim()).filter(Boolean);
         const notesObj = (()=>{ try{return JSON.parse(p['Symptoms Notes']||'{}')}catch{return{}} })();
         if (syms.length){
           const lines = syms.map(s => {
@@ -318,7 +363,6 @@
   // Listen to Refresh to keep cache fresh
   document.getElementById('btn-refresh')?.addEventListener('click', async ()=>{
     await refreshCache();
-    // re-enhance after data reload (تطبيق حالات Highlight الحالية)
     setTimeout(()=>{ 
       Array.from(document.querySelectorAll('#patients-list .patient-card')).forEach(card=>{
         applyHighlightState(card, card.dataset.code || '');
