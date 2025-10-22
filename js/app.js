@@ -23,7 +23,7 @@ const DEFAULTS = {
   spreadsheetId: '1l8UoblxznwV_zz7ZqnorOWZKfnmG3pZgVCT0DaSm0kU',
   bridgeUrl: 'https://script.google.com/macros/s/AKfycbyoIyeVIkLJV0qZkWsDaqRk64T4ckzlnbrtOpXjVD7iN3Eq2YaKj1VnWPg83hJjeKl7/exec'
 };
-console.log('🔗 BRIDGE URL IN USE =', CONFIG.bridgeUrl || '(not set)');
+
 (function ensureDefaults(){
   if (!localStorage.getItem('pr.sheet'))  localStorage.setItem('pr.sheet',  DEFAULTS.spreadsheetId);
   if (!localStorage.getItem('pr.bridge')) localStorage.setItem('pr.bridge', DEFAULTS.bridgeUrl);
