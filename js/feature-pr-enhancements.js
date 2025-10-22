@@ -1,7 +1,10 @@
 // feature-pr-enhancements.js
 // Enhancements (no core edits): room badge, show Diet on cards, rename Diet→Today's notes,
 // staggered slide-in animations for cards + modal, full symptoms on cards + add to summaries.
-// UPDATED: Highlight toggle (⭐) with Sheet persistence; falls back to [HL] tag in Comments if 'Highlighted' field is unavailable.
+// UPDATED: Highlight toggle (⭐) with per-patient label/name.
+// Persist strategy:
+//   1) Try write fields: Highlighted (TRUE/FALSE) + Highlight Note (text).
+//   2) If server rejects (Invalid field), fallback to Comments token: [HL] or [HL: label].
 
 (async function init() {
   // ===== Helpers =====
@@ -36,12 +39,16 @@
   }
   await refreshCache();
 
-  // ===== Highlight logic (Sheet + fallback to Comments [HL]) =====
+  // ===== Highlight logic (Sheet + fallback to Comments [HL] / [HL: label]) =====
   const HL_TAG = '[HL]';
+  const HL_RE  = /\[HL(?::([^\]]+))?\]/;  // يلتقط [HL] أو [HL: نص]
 
-  function hasHLTagInComments(p){
-    const c = String(p?.['Comments'] ?? '');
-    return c.includes(HL_TAG);
+  function parseHLFromComments(txt){
+    const c = String(txt ?? '');
+    const m = c.match(HL_RE);
+    if (!m) return { on:false, note:'' };
+    const note = (m[1] || '').trim();
+    return { on:true, note };
   }
 
   function normalizeBool(v){
@@ -49,96 +56,182 @@
     return s === 'true' || s === '1' || s === 'yes' || s === 'y' || s === '✅';
   }
 
-  // هل المريض مفعّل له Highlight؟ (يفضّل حقل Highlighted، وإلا fallback على Comments)
-  function isHighlighted(code){
-    if (!code) return false;
+  function getHLInfo(code){
     const p = byCode.get(code);
-    if (!p) return false;
-    if ('Highlighted' in p && String(p['Highlighted']).trim() !== '') {
-      return normalizeBool(p['Highlighted']);
-    }
-    return hasHLTagInComments(p);
-  }
-
-  // تطبيق UI لنتيجة معينة
-  function applyUI(code, on){
-    const card = document.querySelector(`.patient-card[data-code="${CSS.escape(code)}"]`);
-    if (card){
-      card.classList.toggle('pr-highlighted', !!on);
-      const btn = card.querySelector('.pr-hl-btn');
-      if (btn){
-        btn.setAttribute('aria-pressed', on?'true':'false');
-        btn.title = on ? 'Remove highlight' : 'Highlight this patient';
-        btn.innerHTML = on ? '⭐' : '☆';
+    if (!p) return { on:false, note:'' };
+    // أولوية لحقل Highlighted / Highlight Note إن وُجد
+    const hasField = ('Highlighted' in p) && String(p['Highlighted']).trim() !== '';
+    const on = hasField ? normalizeBool(p['Highlighted']) : parseHLFromComments(p['Comments']).on;
+    let note = '';
+    if (on){
+      if ('Highlight Note' in p && String(p['Highlight Note']).trim() !== '') {
+        note = String(p['Highlight Note']).trim();
+      } else {
+        note = parseHLFromComments(p['Comments']).note;
       }
     }
+    return { on, note };
   }
 
-  function applyHighlightState(card, code){
-    const on = isHighlighted(code);
-    card.classList.toggle('pr-highlighted', on);
-    const btn = card.querySelector('.pr-hl-btn');
-    if (btn){
-      btn.setAttribute('aria-pressed', on?'true':'false');
-      btn.title = on ? 'Remove highlight' : 'Highlight this patient';
-      btn.innerHTML = on ? '⭐' : '☆';
-    }
-  }
+  function isHighlighted(code){ return getHLInfo(code).on; }
+  function getHighlightNote(code){ return getHLInfo(code).note; }
 
-  // تعديل Comments بإضافة/حذف الوسم [HL]
-  function updateCommentsHLText(current, wantOn){
-    const c = String(current ?? '');
-    const has = c.includes(HL_TAG);
-    if (wantOn && !has) {
-      // أضف الوسم بشكل أنيق في بداية التعليق (أو فراغ إن فاضي)
-      return (c.trim().length ? `${HL_TAG} ${c}` : HL_TAG);
-    }
-    if (!wantOn && has) {
-      return c.replace(HL_TAG, '').replace(/\s{2,}/g, ' ').trim();
+  // إنشاء / تعديل token داخل Comments
+  function makeCommentsWithHL(current, on, note){
+    let c = String(current ?? '');
+    // احذف أي HL موجود
+    c = c.replace(HL_RE, '').replace(/\s{2,}/g,' ').trim();
+    if (on){
+      const token = (note && note.trim()) ? `[HL: ${note.trim()}]` : HL_TAG;
+      return (c ? `${token} ${c}` : token);
     }
     return c;
   }
 
-  // Toggle مع محاولة الكتابة إلى Highlighted، والـ fallback إلى Comments عند فشل الحقل
-  async function toggleHighlight(code, nextOn){
-    if (!code) return;
-    const p = byCode.get(code) || {};
-    const old = isHighlighted(code);
-    if (nextOn === undefined) nextOn = !old;
-
-    // Optimistic UI
-    applyUI(code, nextOn);
-
-    // 1) حاول نكتب إلى حقل Highlighted (إذا السيرفر يدعمه)
+  // ===== Persistence helpers =====
+  async function persistHL_Sheet(code, on, note){
+    // نجرب حقلين معًا إن توفر writeMany، وإلا نعمل حقلاً حقلاً:
     try{
-      await Sheets.setHighlighted(code, !!nextOn); // تعتمد على sheets.js
-      // حدّث الكاش المحلي
-      if (p) p['Highlighted'] = nextOn ? 'TRUE' : 'FALSE';
-      return;
+      if (Sheets.writePatientFields){
+        const fields = { 'Highlighted': on ? 'TRUE' : 'FALSE' };
+        if (note !== undefined) fields['Highlight Note'] = note || '';
+        await Sheets.writePatientFields(code, fields);
+      }else{
+        await Sheets.writePatientField(code, 'Highlighted', on ? 'TRUE' : 'FALSE');
+        if (note !== undefined) await Sheets.writePatientField(code, 'Highlight Note', note || '');
+      }
+      // حدّث الكاش
+      const p = byCode.get(code);
+      if (p){ p['Highlighted'] = on ? 'TRUE' : 'FALSE'; p['Highlight Note'] = note || ''; }
+      return true;
     }catch(err){
       const msg = String(err?.message || err || '');
-      // إن لم تكن مشكلة "Invalid field" رجّع UI وتوقّف
-      if (!/Invalid field: ?Highlighted/i.test(msg)) {
-        console.error('Highlight update failed:', err);
-        applyUI(code, old);
-        alert('Failed to update highlight. Please try again.');
-        return;
+      // إذا كان الرفض بسبب أي من الحقلين، نرجع false لنتحوّل للفولباك
+      if (/Invalid field:\s*Highlighted/i.test(msg) || /Invalid field:\s*Highlight Note/i.test(msg)) {
+        return false;
       }
-      // Otherwise: ننتقل لـ fallback
+      // لأخطاء أخرى: نرميها لكي تُعالج أعلى
+      throw err;
+    }
+  }
+
+  async function persistHL_FallbackComments(code, on, note){
+    const p = byCode.get(code) || {};
+    const nextComments = makeCommentsWithHL(p['Comments'], on, note);
+    await Sheets.writePatientField(code, 'Comments', nextComments);
+    // حدّث الكاش
+    if (p) p['Comments'] = nextComments;
+    return true;
+  }
+
+  // ===== UI helpers =====
+  function ensureHLNoteChip(card){
+    let chip = card.querySelector('.pr-hl-note');
+    if (!chip){
+      chip = document.createElement('span');
+      chip.className = 'row-chip pr-hl-note';
+      const tags = card.querySelector('.row-tags') || card.querySelector('.row-header') || card;
+      tags.appendChild(chip);
+    }
+    return chip;
+  }
+
+  function renderHLUI(code){
+    const card = document.querySelector(`.patient-card[data-code="${CSS.escape(code)}"]`);
+    if (!card) return;
+    const { on, note } = getHLInfo(code);
+    card.classList.toggle('pr-highlighted', !!on);
+    const btn = card.querySelector('.pr-hl-btn');
+    if (btn){
+      btn.setAttribute('aria-pressed', on?'true':'false');
+      btn.title = on ? (note ? `Highlighted: ${note}` : 'Remove highlight') : 'Highlight this patient';
+      btn.innerHTML = on ? '⭐' : '☆';
+    }
+    // Chip: يظهر فقط لو فيه note
+    let chip = card.querySelector('.pr-hl-note');
+    if (note && on){
+      chip = chip || ensureHLNoteChip(card);
+      chip.textContent = `⭐ ${note}`;
+      chip.style.display = '';
+      chip.title = 'Highlight note';
+    } else if (chip){
+      chip.style.display = 'none';
+    }
+  }
+
+  function applyUI(code, on, note){
+    // نحدّث بيانات الكاش مؤقتًا قبل الكتابة لنعكس UI مباشرة
+    const p = byCode.get(code) || {};
+    if ('Highlighted' in p) p['Highlighted'] = on ? 'TRUE' : 'FALSE';
+    if ('Highlight Note' in p || note !== undefined) p['Highlight Note'] = note || '';
+    // إن ما عندنا حقل، نخلي UI يعتمد على Comments عند الفولباك لاحقًا
+    renderHLUI(code);
+  }
+
+  function applyHighlightState(card, code){ renderHLUI(code); }
+
+  function promptForLabel(defaultText=''){
+    const v = prompt('أدخل اسم الهايلايت (اختياري):', defaultText || '');
+    if (v == null) return null; // cancel
+    return v.trim();
+  }
+
+  // ===== Toggle & note editing =====
+  async function toggleHighlight(code, nextOn, maybePrompt=false){
+    if (!code) return;
+    const { on:oldOn, note:oldNote } = getHLInfo(code);
+    if (nextOn === undefined) nextOn = !oldOn;
+
+    // لو فعّلنا الآن وطلبت فتح prompt، اسأل عن اسم
+    let desiredNote = oldNote;
+    if (nextOn && maybePrompt){
+      const v = promptForLabel(oldNote);
+      if (v !== null) desiredNote = v; // null يعني cancel، نحتفظ بالقديم
     }
 
-    // 2) Fallback إلى Comments بإدراج/حذف [HL]
+    // Optimistic UI
+    applyUI(code, nextOn, desiredNote);
+
     try{
-      const newComments = updateCommentsHLText(p['Comments'], !!nextOn);
-      await Sheets.writePatientField(code, 'Comments', newComments);
-      // حدّث الكاش
-      p['Comments'] = newComments;
-      // لا تغيّر p['Highlighted'] هنا (حتى لا نخلط بين الآليتين)
-    }catch(err2){
-      console.error('Fallback to Comments failed:', err2);
-      // تراجع UI لو فشل الاثنان
-      applyUI(code, old);
-      alert('Failed to update highlight (fallback). Please try again.');
+      // 1) جرّب حفظ بحقول Highlighted + Highlight Note
+      const ok = await persistHL_Sheet(code, !!nextOn, desiredNote);
+      if (ok) return;
+
+      // 2) فولباك: Comments tokens
+      await persistHL_FallbackComments(code, !!nextOn, desiredNote);
+    }catch(err){
+      console.error('Highlight update failed:', err);
+      // تراجع UI
+      applyUI(code, oldOn, oldNote);
+      alert('Failed to update highlight. Please try again.');
+    }finally{
+      // إعادة رسم الحالة من الكاش الحالي
+      renderHLUI(code);
+    }
+  }
+
+  async function editHighlightNote(code){
+    if (!isHighlighted(code)){
+      // لو مش مفعّل، فعّل مع اسم
+      await toggleHighlight(code, true, true);
+      return;
+    }
+    const current = getHighlightNote(code);
+    const v = promptForLabel(current);
+    if (v === null) return; // cancel
+    // Optimistic UI
+    applyUI(code, true, v);
+
+    try{
+      const ok = await persistHL_Sheet(code, true, v);
+      if (!ok) await persistHL_FallbackComments(code, true, v);
+    }catch(err){
+      console.error('Edit note failed:', err);
+      // ما نلغي الهايلايت، بس نرجّع الاسم القديم
+      applyUI(code, true, current);
+      alert('Failed to save highlight name. Please try again.');
+    }finally{
+      renderHLUI(code);
     }
   }
 
@@ -186,6 +279,7 @@
         width:28px; height:28px; border-radius:999px; border:1px solid var(--border);
         background: var(--glass); cursor:pointer; font-size:16px; line-height:1;
         transition: transform .12s ease, box-shadow .12s ease, background .2s ease;
+        user-select: none;
       }
       .pr-hl-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,.15); }
       .pr-hl-btn[aria-pressed="true"] { background: color-mix(in oklab, var(--primary) 18%, var(--glass)); border-color: color-mix(in oklab, var(--primary) 40%, var(--border)); }
@@ -203,6 +297,13 @@
         color: var(--fg); background: color-mix(in oklab, var(--primary) 22%, var(--card));
         border: 1px solid color-mix(in oklab, var(--primary) 40%, var(--border));
         border-radius: 999px;
+      }
+
+      /* Highlight note chip (shows only when there is a note) */
+      .row-chip.pr-hl-note {
+        background: color-mix(in oklab, var(--primary-2) 18%, transparent);
+        border: 1px solid var(--border);
+        font-weight: 600;
       }
     `.trim();
     const s = document.createElement('style');
@@ -292,10 +393,24 @@
         header.appendChild(btn);
       }
 
+      // يسار-كليك: تبديل سريع
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const next = !isHighlighted(code);
-        toggleHighlight(code, next);
+        const wantOn = !isHighlighted(code);
+        // إذا تشغيل جديد، افتح prompt لاسم الهايلايت (اختياري)
+        toggleHighlight(code, wantOn, wantOn);
+      });
+
+      // دوبل-كليك أو كليك يمين: تعديل الاسم
+      btn.addEventListener('dblclick', (e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        editHighlightNote(code);
+      });
+      btn.addEventListener('contextmenu', (e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        editHighlightNote(code);
       });
     }
 
